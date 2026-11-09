@@ -76,3 +76,6 @@ textarea.inp { min-height:80px; padding:10px 14px; resize:vertical; }
 
 /* Kopfzeile: Untertitel einzeilig, seit der Konto-Knopf dazukam */
 .brand span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Versionsanzeige unten auf jeder Seite */
+.appver { text-align:center; font-size:12px; color:var(--mut); margin:28px 0 8px; opacity:.7; }
