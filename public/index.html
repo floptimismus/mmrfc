@@ -1,0 +1,1726 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<title>Munich Monks RFC</title>
+<link rel="icon" type="image/png" href="/icons/favicon.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Monks">
+
+<script>
+/* ======================================================================
+   ✏️  VEREINSDATEN – HIER BEARBEITEN
+   Alles, was du regelmäßig änderst, steht in diesem Block.
+   ====================================================================== */
+
+/* ---------- 1) Allgemeine Einstellungen ---------- */
+const CONFIG = {
+  // SpielerPlus-Kalender (ICS). Achtung: der Link enthält einen persönlichen Token.
+  ICS_URL: "https://www.spielerplus.de/en-gb/events/ics?t=YfmEVQ_7cX&u=wscW2YysrO",
+  // Optional: eigener CORS-Proxy (z. B. Cloudflare Worker), der den Feed durchreicht.
+  // Auf Cloudflare: /api/ics (Pages Function in functions/api/ics.js).
+  PROXY_URL: "/api/ics",
+  TIMEZONE: "Europe/Berlin",
+  HORIZON_DAYS: 365,            // wie weit in die Zukunft Termine angezeigt werden
+  INSTAGRAM: "munichmonks_rfc", // Vereins-Instagram
+  // Google Kalender, in den SpielerPlus synchronisiert (für den Live-Abruf über die Google-Calendar-Verbindung)
+  GOOGLE_CONNECTOR: "Google Calendar",
+  GOOGLE_CALENDAR_ID: "9kts2i7bfllfsmlfiunpnjj9pshaltj0@import.calendar.google.com",
+};
+
+/* ---------- 2) Kalender-Schnappschuss (optional) ----------
+   Hier kann der Inhalt einer .ics-Datei eingefügt werden (zwischen die Backticks).
+   Wird genutzt, wenn der Live-Abruf nicht klappt und nichts importiert wurde. */
+const EMBEDDED_ICS = ``;
+
+/* ---------- 3) Team & Ansprechpersonen ----------
+   Pro Person:
+     rolle        – wird auf der Karte angezeigt
+     gruppe       – "vorstand" | "coaching" | "orga" | "vertrauen" – oder mehrere als Liste, z. B. ["coaching", "orga"]
+                    ("vertrauen" = großer Hinweis oben)
+     name         – leer lassen = Platzhalter „Name folgt“
+     pronomen     – z. B. "sie/ihr", "er/ihm", "they/them", "keine/Name"
+     sprichMichAn – kurzer Satz „Sprich mich an bei …“
+     email / whatsapp / instagram – nur ausfüllen, was es gibt (WhatsApp mit Ländervorwahl, z. B. "4917612345678")
+     foto         – optional. Nur als eingebettetes Bild (data:image/...) möglich, externe Bild-Links blockiert die Seite.
+*/
+/* Fotos werden in der App über „Fotos bearbeiten“ hinzugefügt und hier automatisch gespeichert (nicht von Hand bearbeiten). */
+const FOTOS = /*FOTOS_START*/{}/*FOTOS_END*/;
+
+const TEAM = [
+  { rolle: "Confidant (Vertrauensperson)", gruppe: "vertrauen", name: "Laura", pronomen: "",
+    sprichMichAn: "allem, was sich nicht okay anfühlt – vertraulich und ohne Urteil.",
+    email: "", whatsapp: "", instagram: "", foto: "" },
+
+  { rolle: "Vorstand", gruppe: "vorstand", name: "Chris", pronomen: "",
+    sprichMichAn: "Fragen zum Verein, Mitgliedschaft und großen Ideen.", email: "", whatsapp: "", instagram: "", foto: "" },
+  { rolle: "Co-Vorstand", gruppe: "vorstand", name: "Michaela", pronomen: "",
+    sprichMichAn: "Vereinsorga, Kooperationen und allem rund um den Verein.", email: "", whatsapp: "", instagram: "", foto: "" },
+  { rolle: "Co-Vorstand", gruppe: "vorstand", name: "Sven", pronomen: "",
+    sprichMichAn: "Vereinsorga, Kooperationen und allem rund um den Verein.", email: "", whatsapp: "", instagram: "", foto: "" },
+  { rolle: "Kassenwart", gruppe: "vorstand", name: "Tom", pronomen: "",
+    sprichMichAn: "Beiträgen, Erstattungen und Kosten für Turnierreisen.", email: "", whatsapp: "", instagram: "", foto: "" },
+
+  { rolle: "Head Coach · Forwards Coach", gruppe: "coaching", name: "Markus", pronomen: "",
+    sprichMichAn: "Training, Aufstellung, Scrum, Lineout und allem im Sturm.", email: "", whatsapp: "", instagram: "", foto: "" },
+  { rolle: "Forwards & Backs Coach", gruppe: "coaching", name: "Dejvi", pronomen: "",
+    sprichMichAn: "Technik-Fragen – egal ob Forward oder Back.", email: "", whatsapp: "", instagram: "", foto: "" },
+  { rolle: "Backs Coach", gruppe: "coaching", name: "Timothy", pronomen: "",
+    sprichMichAn: "Passen, Laufwegen, Backline-Moves und Kicks.", email: "", whatsapp: "", instagram: "", foto: "" },
+  { rolle: "Assistant Coach · Coach in Training", gruppe: "coaching", name: "Greg", pronomen: "",
+    sprichMichAn: "Fragen im Training und deinem Einstieg ins Rugby.", email: "", whatsapp: "", instagram: "", foto: "" },
+  // Flo hat zwei Rollen – eine Karte, erscheint bei „Coaching“ und „Orga & Social Media“
+  { rolle: "Assistant Coach · Coach in Training · Social Media Manager", gruppe: ["coaching", "orga"], name: "Flo", pronomen: "",
+    sprichMichAn: "Fragen im Training – und bei Fotos, Posts und Story-Ideen für unseren Insta.", email: "", whatsapp: "", instagram: "", foto: "" },
+  { rolle: "Social Media Assistance", gruppe: "orga", name: "Sandra", pronomen: "",
+    sprichMichAn: "Fotos vom Spieltag, Story-Ideen und Insta-Takeovers.", email: "", whatsapp: "", instagram: "", foto: "" },
+];
+
+
+/* ---------- 4) Unsere Calls ----------
+   Jeder Call = ein Objekt. Neue Calls einfach unten anhängen.
+     kategorie  – "Lineout" | "Scrum" | "Kick-off" | "Backline" … (neue Kategorie = neuer Filter-Chip)
+     setup      – Grundaufstellung der Grafik (aktuell: "lineout")
+     schritte   – Animation, Schritt für Schritt. Pro Schritt optional:
+        text  : Bildunterschrift
+        move  : { Spieler: [x, y] }   neue Position (Spielfeld 360×290, Angriff nach oben)
+        lift  : { Spieler: 1 | 0 }    hochgehoben (1) oder gelandet (0)
+        ball  : { to: "Spieler", arc: Höhe }  Ball fliegt/wird gegeben
+        maul  : [Spieler…] | null     Maul markieren / auflösen
+        support: [Spieler…]           Support-Läufer*innen (gestrichelter Ring + Laufweg)
+        lauf  : [Spieler…]            Laufweg dieser Spieler*innen einzeichnen (z. B. Ballträger*in)
+        dauer : Millisekunden (Standard 1000)
+   Spieler-Kürzel im Lineout:
+     H = Hooker (wirft ein)
+     Pod 1: L1 = Front-Lifter · J1 = Jumper · L2 = Back-Lifter
+     Pod 2: L3 = Front-Lifter · J2 = Jumper · L4 = Back-Lifter
+     SH = Scrum-half (9) · FH = Fly-half (10) · IC = Inside Centre (12) · O1–O6 = Gegner*innen
+*/
+const CALLS = [
+  {
+    id: "giesinger", name: "Giesinger", kategorie: "Lineout", kurz: "Wurf auf den ersten Jumper (J1)",
+    erklaerung: "Unser Standard-Call: kurzer, sicherer Wurf auf den Jumper von Pod 1. Wenig Flugzeit, wenig Risiko – perfekt, wenn wir den Ball einfach sicher haben wollen.",
+    wer: [["Hooker", "Wirft gerade auf J1."], ["Pod 1 (L1 + L2)", "Front- und Back-Lifter heben J1 gemeinsam."], ["J1", "Springt, fängt mit beiden Händen über dem Kopf, landet kontrolliert."], ["9", "Steht hinter J1 bereit und nimmt den Ball an."]],
+    achtung: ["Timing: J1 springt, wenn der Ball die Hand des Hookers verlässt.", "Lifter halten J1, bis die Füße wieder sicher am Boden sind.", "Ball nach unten zu 9 geben – nicht in die Gegner-Hände tippen."],
+    setup: "lineout",
+    schritte: [
+      { text: "Call „Giesinger“ – alle wissen: der Ball geht auf J1.", dauer: 1100 },
+      { text: "Pod 1: L1 und L2 heben J1 hoch.", move: { L1: [100, 160], L2: [128, 160] }, lift: { J1: 1 }, dauer: 800 },
+      { text: "Hooker wirft gerade über die Mitte auf J1.", ball: { to: "J1", arc: 34 }, dauer: 850 },
+      { text: "J1 fängt, landet sicher und gibt den Ball nach unten zu 9.", lift: { J1: 0 }, move: { SH: [130, 192] }, ball: { to: "SH", arc: 6 }, dauer: 900 },
+      { text: "9 passt auf 10 – Angriff läuft!", move: { FH: [236, 226] }, ball: { to: "FH", arc: 10 }, dauer: 900 },
+      { text: "10 läuft an, 12 kommt mit. Lineout gewonnen ✓", move: { FH: [244, 196], IC: [282, 222] }, dauer: 900 },
+    ],
+  },
+  {
+    id: "isar", name: "Isar", kategorie: "Lineout", kurz: "Wurf auf den zweiten Jumper (J2)",
+    erklaerung: "Längerer Wurf nach hinten auf den Jumper von Pod 2. Gut, wenn die Gegner*innen vorne auf J1 lauern – dafür braucht der Wurf mehr Präzision.",
+    wer: [["Hooker", "Längerer Wurf mit etwas mehr Bogen auf J2."], ["Pod 2 (L3 + L4)", "Front- und Back-Lifter heben J2."], ["J2", "Springt, fängt und landet kontrolliert."], ["9", "Läuft hinter J2 und übernimmt den Ball."]],
+    achtung: ["Der Wurf ist länger: Hooker und J2 brauchen eingespieltes Timing.", "Pod 1 bleibt am Boden – nicht mitspringen, sonst verwirrt's.", "9 rechtzeitig nach hinten verschieben."],
+    setup: "lineout",
+    schritte: [
+      { text: "Call „Isar“ – Ziel ist J2.", dauer: 1100 },
+      { text: "Pod 2: L3 und L4 heben J2 hoch.", move: { L3: [160, 160], L4: [188, 160] }, lift: { J2: 1 }, dauer: 800 },
+      { text: "Hooker wirft weit über die Mitte auf J2.", ball: { to: "J2", arc: 44 }, dauer: 1000 },
+      { text: "J2 fängt, landet und gibt nach unten zu 9.", lift: { J2: 0 }, move: { SH: [176, 194] }, ball: { to: "SH", arc: 6 }, dauer: 900 },
+      { text: "9 passt auf 10 – ab geht's.", move: { FH: [240, 226] }, ball: { to: "FH", arc: 10 }, dauer: 900 },
+      { text: "10 attackiert mit 12. Lineout gewonnen ✓", move: { FH: [248, 196], IC: [284, 222] }, dauer: 900 },
+    ],
+  },
+  {
+    id: "sieben", name: "7", kategorie: "Lineout", kurz: "Täuschung mit Pod 1 – Front-Lifter fängt und läuft",
+    erklaerung: "Der Überraschungs-Call: Beide Pods gehen weiter nach hinten, Pod 1 täuscht einen Sprung an. Der Front-Lifter (L1) dreht sich zum Hooker, bekommt einen schnellen, flachen Ball und läuft direkt selbst los, J1 und L2 laufen als Support mit. Kein Pass zu 9 oder den Backs.",
+    wer: [["Pod 1 + Pod 2", "Gehen beim Call weiter nach hinten – vorne entsteht Platz."], ["J1 + L2", "Täuschen einen Sprung an – und laufen danach sofort als Support hinter L1."], ["L1 (Front-Lifter)", "Dreht sich zum Hooker, fängt den Ball und läuft sofort los."], ["Hooker", "Schneller, flacher Wurf direkt auf L1."]],
+    achtung: ["Schnell ausführen, bevor sich die Gegner*innen sortieren.", "Die Täuschung von Pod 1 muss echt aussehen.", "L1 läuft selbst weiter – nicht zu 9 oder den Backs passen.", "Support eng dranbleiben: eine Armlänge hinter/neben L1."],
+    setup: "lineout",
+    schritte: [
+      { text: "Call „7“ – beide Pods wissen Bescheid.", dauer: 1100 },
+      { text: "Beide Pods gehen weiter nach hinten – vorne entsteht Platz.", move: { L1: [112, 158], J1: [130, 158], L2: [148, 158], L3: [170, 158], J2: [188, 158], L4: [206, 158], O1: [112, 122], O2: [130, 122], O3: [148, 122], O4: [170, 122], O5: [188, 122], O6: [206, 122] }, dauer: 900 },
+      { text: "Pod 1 täuscht einen Sprung an, L1 dreht sich zum Hooker.", move: { L1: [106, 152] }, lift: { J1: 0.35, O2: 0.6 }, dauer: 700 },
+      { text: "Schneller, flacher Wurf auf L1.", ball: { to: "L1", arc: 8 }, dauer: 550 },
+      { text: "L1 läuft mit dem Ball los – J1 und L2 lösen sich sofort als Support.", lift: { J1: 0, O2: 0 }, move: { L1: [94, 114], J1: [112, 132], L2: [130, 136] }, support: ["J1", "L2"], lauf: ["L1"], dauer: 900 },
+      { text: "Support-Lauf: J1 und L2 bleiben direkt an L1 dran – bereit für Offload oder Ruck.", move: { L1: [88, 94], J1: [104, 112], L2: [122, 116] }, dauer: 900 },
+      { text: "Raumgewinn ✓ – kein Pass zu 9 oder den Backs.", move: { L1: [86, 78], J1: [100, 98], L2: [120, 100] }, dauer: 800 },
+    ],
+  },
+  {
+    id: "hook", name: "Hooker", kategorie: "Lineout", kurz: "Pod 2 öffnet eine Lücke, Ball zurück zum Hooker",
+    erklaerung: "Trickspielzug: Pod 2 baut eine größere Lücke zu Pod 1 auf und bekommt den Einwurf. Der Hooker läuft nach dem Wurf über unsere Spielfeldseite in die Lücke zwischen Pod 1 und Pod 2, bekommt den Ball zurück und läuft weiter. Pod 1 und Pod 2 laufen als Support mit. Kein Pass zu 9 oder den Backs.",
+    wer: [["Pod 2 (L3, J2, L4)", "Geht beim Call nach hinten und öffnet eine größere Lücke zu Pod 1."], ["Hooker", "Wirft auf J2 und läuft sofort über unsere Seite in die Lücke."], ["J2", "Gibt den Ball direkt zum Hooker in der Lücke."], ["L2 + L3 (Support)", "Die beiden Lifter an der Lücke laufen links und rechts hinter dem Hooker mit."]],
+    achtung: ["Hooker muss sofort nach dem Wurf loslaufen – über unsere Seite, nicht durch die Gasse.", "J2 spielt den Ball kontrolliert – lieber kurz und sicher.", "Der Hooker läuft selbst weiter – kein Pass zu 9 oder den Backs.", "Funktioniert nur, wenn niemand den Call verrät 🤫"],
+    setup: "lineout",
+    schritte: [
+      { text: "Call „Hooker“ – sieht aus wie ein Wurf auf Pod 2 …", dauer: 1100 },
+      { text: "Pod 2 geht nach hinten und baut eine größere Lücke zu Pod 1 auf.", move: { L3: [168, 158], J2: [186, 158], L4: [204, 158], O4: [168, 122], O5: [186, 122], O6: [204, 122] }, dauer: 900 },
+      { text: "Pod 2: L3 und L4 heben J2 hoch.", move: { L3: [172, 160], L4: [200, 160] }, lift: { J2: 1 }, dauer: 800 },
+      { text: "Hooker wirft auf J2 und läuft sofort über unsere Seite los.", ball: { to: "J2", arc: 46 }, move: { H: [80, 182] }, lauf: ["H"], dauer: 1000 },
+      { text: "Hooker läuft in die Lücke zwischen Pod 1 und Pod 2 – J2 gibt ihm den Ball.", move: { H: [150, 160] }, ball: { to: "H", arc: 12 }, dauer: 900 },
+      { text: "Hooker bricht durch die Lücke – L2 und L3 lösen sich als Support.", lift: { J2: 0 }, move: { H: [152, 112], L2: [140, 132], L3: [164, 134], O3: [118, 118], O4: [184, 118] }, support: ["L2", "L3"], dauer: 900 },
+      { text: "Support-Lauf: L2 und L3 laufen links und rechts direkt hinter dem Hooker.", move: { H: [153, 90], L2: [138, 110], L3: [168, 112] }, dauer: 900 },
+      { text: "Raumgewinn durch die Mitte ✓ – kein Pass zu 9 oder den Backs.", move: { H: [154, 76], L2: [136, 96], L3: [172, 98] }, dauer: 800 },
+    ],
+  },
+  {
+    id: "dhl", name: "DHL", kategorie: "Lineout", kurz: "Lineout wird zum Maul – fangen, landen, schieben",
+    erklaerung: "Wir liefern das Paket – zuverlässig über die Linie 📦. J1 fängt, landet, alle binden sofort an und das Maul schiebt als Einheit nach vorne. Der Ball wird nach hinten durchgereicht.",
+    wer: [["J1", "Fängt, landet stabil und dreht sich mit dem Rücken zu den Gegner*innen."], ["L1 + L2", "Bleiben dran und binden sofort an J1."], ["Pod 2 + Hooker", "Kommen von hinten dazu und binden an."], ["Letzte Person", "Bekommt den Ball durchgereicht und hält ihn hinten sicher."], ["9", "Steht hinter dem Maul und entscheidet, wann der Ball raus geht."]],
+    achtung: ["Tief bleiben und eng binden – ein Maul ist nur so stark wie seine Bindung.", "Ball schnell nach hinten weitergeben.", "Gemeinsam schieben: kleine Schritte, auf Kommando."],
+    setup: "lineout",
+    schritte: [
+      { text: "Call „DHL“ – heute wird geliefert.", dauer: 1100 },
+      { text: "Pod 1: L1 und L2 heben J1.", move: { L1: [100, 160], L2: [128, 160] }, lift: { J1: 1 }, dauer: 800 },
+      { text: "Wurf auf J1.", ball: { to: "J1", arc: 34 }, dauer: 850 },
+      { text: "J1 landet, L1 und L2 binden sofort an.", lift: { J1: 0 }, move: { J1: [114, 158], L1: [94, 164], L2: [134, 164], O1: [94, 138], O2: [114, 134], O3: [134, 138], O4: [97, 116], O5: [114, 112], O6: [131, 116] }, dauer: 900 },
+      { text: "Pod 2 und der Hooker binden hinten an – das Maul steht.", move: { L3: [97, 186], J2: [114, 186], L4: [131, 186], H: [114, 208], SH: [156, 224] }, maul: ["J1", "L1", "L2", "L3", "J2", "L4", "H"], dauer: 1000 },
+      { text: "Ball wird nach hinten durchgereicht.", ball: { to: "H", arc: 0 }, dauer: 800 },
+      { text: "Schieben! Alle gemeinsam nach vorne.", move: { J1: [114, 128], L1: [94, 134], L2: [134, 134], L3: [97, 156], J2: [114, 156], L4: [131, 156], H: [114, 178], O1: [94, 108], O2: [114, 104], O3: [134, 108], O4: [97, 86], O5: [114, 82], O6: [131, 86], SH: [156, 194] }, dauer: 1600 },
+      { text: "Paket zugestellt ✓ – 9 entscheidet, wann der Ball raus geht.", move: { J1: [114, 110], L1: [94, 116], L2: [134, 116], L3: [97, 138], J2: [114, 138], L4: [131, 138], H: [114, 160], O1: [94, 90], O2: [114, 86], O3: [134, 90], O4: [97, 68], O5: [114, 66], O6: [131, 68], SH: [154, 176] }, dauer: 1300 },
+    ],
+  },
+];
+
+
+/* ---------- 5) Termin-Schnappschuss ----------
+   Automatisch aus dem Google Kalender „TeamPlus - Munich Monks“ erzeugt – nicht von Hand bearbeiten. */
+const SNAPSHOT = { stand: "2026-11-09T09:40:00+01:00", events: [{"t":"Training indoor","s":"2026-11-11T18:20:00+01:00","e":"2026-11-11T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131178"},{"t":"FLINTA Training","s":"2026-11-14T10:45:00+01:00","e":"2026-11-14T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80846750"},{"t":"Game: Verbandsliga - Munich Monks","s":"2026-11-14T11:30:00+01:00","e":"2026-11-14T14:30:00+01:00","d":"https://www.spielerplus.de/en-gb/game/view?id=14410819"},{"t":"Training indoor","s":"2026-11-18T18:20:00+01:00","e":"2026-11-18T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131179"},{"t":"Training outdoor","s":"2026-11-21T10:45:00+01:00","e":"2026-11-21T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979338"},{"t":"Training indoor","s":"2026-11-25T18:20:00+01:00","e":"2026-11-25T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131180"},{"t":"SG Bayern Match against Mainz","s":"2026-11-28T00:00:00+01:00","e":"2026-11-28T03:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/event/view?id=2561188"},{"t":"FLINTA Training","s":"2026-11-28T10:45:00+01:00","e":"2026-11-28T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80846751"},{"t":"Training outdoor","s":"2026-11-28T10:45:00+01:00","e":"2026-11-28T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979339"},{"t":"Training indoor","s":"2026-12-02T18:20:00+01:00","e":"2026-12-02T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131181"},{"t":"Training outdoor","s":"2026-12-05T10:45:00+01:00","e":"2026-12-05T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979340"},{"t":"Training indoor","s":"2026-12-09T18:20:00+01:00","e":"2026-12-09T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131182"},{"t":"Training outdoor","s":"2026-12-12T10:45:00+01:00","e":"2026-12-12T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979341"},{"t":"Training indoor","s":"2026-12-16T18:20:00+01:00","e":"2026-12-16T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131183"},{"t":"Christmas Party","s":"2026-12-18T18:00:00+01:00","e":"2026-12-18T21:00:00+01:00","l":"Innere Wiener Straße 19, 81667 München-Au-Haidhausen, Deutschland","d":"https://www.spielerplus.de/en-gb/event/view?id=2572223"},{"t":"Training outdoor","s":"2026-12-19T10:45:00+01:00","e":"2026-12-19T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979342"},{"t":"Training indoor","s":"2026-12-23T18:20:00+01:00","e":"2026-12-23T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131184"},{"t":"Training outdoor","s":"2026-12-26T10:45:00+01:00","e":"2026-12-26T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979343"},{"t":"Training indoor","s":"2026-12-30T18:20:00+01:00","e":"2026-12-30T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131185"},{"t":"Training outdoor","s":"2027-01-02T10:45:00+01:00","e":"2027-01-02T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979344"},{"t":"Training indoor","s":"2027-01-06T18:20:00+01:00","e":"2027-01-06T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131186"},{"t":"Training outdoor","s":"2027-01-09T10:45:00+01:00","e":"2027-01-09T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979345"},{"t":"Training indoor","s":"2027-01-13T18:20:00+01:00","e":"2027-01-13T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131187"},{"t":"Training outdoor","s":"2027-01-16T10:45:00+01:00","e":"2027-01-16T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979346"},{"t":"Training indoor","s":"2027-01-20T18:20:00+01:00","e":"2027-01-20T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131188"},{"t":"Training outdoor","s":"2027-01-23T10:45:00+01:00","e":"2027-01-23T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979347"},{"t":"Training indoor","s":"2027-01-27T18:20:00+01:00","e":"2027-01-27T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131189"},{"t":"Training outdoor","s":"2027-01-30T10:45:00+01:00","e":"2027-01-30T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979348"},{"t":"Training indoor","s":"2027-02-03T18:20:00+01:00","e":"2027-02-03T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131190"},{"t":"Training outdoor","s":"2027-02-06T10:45:00+01:00","e":"2027-02-06T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979349"},{"t":"Training indoor","s":"2027-02-10T18:20:00+01:00","e":"2027-02-10T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131191"},{"t":"Training outdoor","s":"2027-02-13T10:45:00+01:00","e":"2027-02-13T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979350"},{"t":"Training indoor","s":"2027-02-17T18:20:00+01:00","e":"2027-02-17T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131192"},{"t":"Training outdoor","s":"2027-02-20T10:45:00+01:00","e":"2027-02-20T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979351"},{"t":"Training indoor","s":"2027-02-24T18:20:00+01:00","e":"2027-02-24T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131193"},{"t":"Training outdoor","s":"2027-02-27T10:45:00+01:00","e":"2027-02-27T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979352"},{"t":"Training indoor","s":"2027-03-03T18:20:00+01:00","e":"2027-03-03T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131194"},{"t":"Training outdoor","s":"2027-03-06T10:45:00+01:00","e":"2027-03-06T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979353"},{"t":"Training indoor","s":"2027-03-10T18:20:00+01:00","e":"2027-03-10T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131195"},{"t":"Training outdoor","s":"2027-03-13T10:45:00+01:00","e":"2027-03-13T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979354"},{"t":"Training indoor","s":"2027-03-17T18:20:00+01:00","e":"2027-03-17T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131198"},{"t":"Training outdoor","s":"2027-03-20T10:45:00+01:00","e":"2027-03-20T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979355"},{"t":"Training indoor","s":"2027-03-24T18:20:00+01:00","e":"2027-03-24T20:00:00+01:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131207"},{"t":"Training outdoor","s":"2027-03-27T10:45:00+01:00","e":"2027-03-27T13:00:00+01:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979356"},{"t":"Training indoor","s":"2027-03-31T18:20:00+02:00","e":"2027-03-31T20:00:00+02:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131210"},{"t":"Training outdoor","s":"2027-04-03T10:45:00+02:00","e":"2027-04-03T13:00:00+02:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979357"},{"t":"Training indoor","s":"2027-04-07T18:20:00+02:00","e":"2027-04-07T20:00:00+02:00","l":"Kirchseeoner Str. 7, 81669 München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80131211"},{"t":"Training outdoor","s":"2027-04-10T10:45:00+02:00","e":"2027-04-10T13:00:00+02:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979359"},{"t":"Training outdoor","s":"2027-04-17T10:45:00+02:00","e":"2027-04-17T13:00:00+02:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979360"},{"t":"Training outdoor","s":"2027-04-24T10:45:00+02:00","e":"2027-04-24T13:00:00+02:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979361"},{"t":"Training outdoor","s":"2027-05-01T10:45:00+02:00","e":"2027-05-01T13:00:00+02:00","l":"München, Deutschland","d":"https://www.spielerplus.de/en-gb/training/view?id=80979362"}] };
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --y:#ffcc00; --k:#000; --w:#fff;
+  --bg:#0a0a0a; --s1:#141414; --s2:#1d1d1d; --s3:#262626; --line:#2b2b2b;
+  --tx:#f4f4f4; --mut:#a1a1a1; --acc:#ffcc00; --on-acc:#000;
+  --rainbow:conic-gradient(from 0deg,#ff0000,#ff7a00,#ffe600,#7dff00,#00ff8c,#00e1ff,#0057ff,#8000ff,#ff00d4,#ff0000);
+  --rainbow-lin:linear-gradient(90deg,#ff3b30,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#af52de,#ff2d92);
+  --c-training:#ffcc00; --c-spiel:#ff6b5b; --c-turnier:#5ac8ff; --c-social:#c79bff;
+  --radius:18px;
+  --head:"Barlow Condensed",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+[data-theme=light]{
+  --bg:#f3f2ec; --s1:#ffffff; --s2:#f1f0e9; --s3:#e6e5dc; --line:#dedcd2;
+  --tx:#111; --mut:#5b5b5b; --acc:#8a6a00;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--body);font-size:16px;line-height:1.45}
+body{min-height:100vh;overscroll-behavior-y:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--acc)}
+h1,h2,h3{font-family:var(--head);letter-spacing:.01em;margin:0}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- Header ---------- */
+.appbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.appbar .wrap{display:flex;align-items:center;gap:12px;height:62px}
+.appbar img{width:42px;height:42px;border-radius:50%;display:block}
+.brand{flex:1;min-width:0}
+.brand b{display:block;font-family:var(--head);font-weight:800;font-size:22px;line-height:1;text-transform:uppercase;letter-spacing:.03em}
+.brand span{font-size:12px;color:var(--mut)}
+.iconbtn{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--s1);display:grid;place-items:center}
+.iconbtn svg{width:20px;height:20px}
+.jersey-strip{height:6px;background:linear-gradient(var(--y) 0 50%,#fff 50% 100%)}
+
+/* ---------- Tabbar ---------- */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:color-mix(in srgb,var(--s1) 94%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabbar nav{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tab{position:relative;border:0;background:none;height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--mut);font-size:11.5px;font-weight:600}
+.tab svg{width:25px;height:25px;transition:transform .2s}
+.tab[aria-selected=true]{color:var(--tx)}
+.tab[aria-selected=true] svg{color:var(--y);transform:translateY(-1px)}
+[data-theme=light] .tab[aria-selected=true] svg{color:#000}
+.tab[aria-selected=true]::before{content:"";position:absolute;top:0;width:34px;height:3px;border-radius:0 0 4px 4px;background:var(--rainbow-lin)}
+main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+section[hidden]{display:none}
+
+/* ---------- Jersey-Hero ---------- */
+.hero{border-radius:var(--radius);overflow:hidden;margin:16px 0 14px;border:1px solid var(--line)}
+.hero .top{background:var(--y);color:#000;padding:16px 18px 12px}
+.hero .top small{font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:11.5px;opacity:.75}
+.hero .top h1,.hero .top h2{font-size:32px;font-weight:800;line-height:1.02;text-transform:uppercase}
+.hero .stripe{height:12px;background:#fff}
+.hero .body{background:#000;color:#fff;padding:14px 18px 16px}
+.hero .body p{margin:0;color:#d6d6d6;font-size:14.5px}
+
+/* ---------- Chips / Buttons ---------- */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;margin:0 -16px;padding-left:16px;padding-right:16px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--s1);border-radius:999px;padding:0 14px;height:38px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.chip .dot{width:9px;height:9px;border-radius:50%}
+.chip[aria-pressed=true]{background:var(--y);color:#000;border-color:var(--y)}
+.filter-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:6px 0 6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border-radius:14px;border:1px solid var(--line);background:var(--s2);font-weight:600;font-size:15px;text-decoration:none;color:var(--tx)}
+.btn svg{width:18px;height:18px;flex:none}
+.btn.primary{background:var(--y);border-color:var(--y);color:#000}
+.btn.ghost{background:transparent}
+.btn.sm{min-height:38px;font-size:14px;padding:0 12px;border-radius:11px}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ---------- Termine ---------- */
+.status{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mut);margin:4px 0 10px}
+.status .led{width:8px;height:8px;border-radius:50%;background:#34c759;flex:none}
+.status .led.warn{background:#ff9f0a}
+.status .led.demo{background:var(--rainbow)}
+.status button{margin-left:auto;border:0;background:none;color:var(--acc);font-weight:600;font-size:13px;padding:8px 0}
+.next .top{display:flex;gap:12px;align-items:flex-start}
+.next .top .ticon{width:44px;height:44px;border-radius:12px;background:#000;color:var(--y);display:grid;place-items:center;flex:none}
+.next .top .ticon svg{width:24px;height:24px}
+.next .top h2{font-size:28px}
+.countdown{display:flex;gap:8px;margin:2px 0 12px}
+.countdown div{flex:1;background:#151515;border:1px solid #2a2a2a;border-radius:12px;text-align:center;padding:8px 0 6px}
+.countdown b{display:block;font-family:var(--head);font-size:34px;font-weight:800;line-height:1;color:var(--y);font-variant-numeric:tabular-nums}
+.countdown span{font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.06em}
+.live-now{display:inline-flex;align-items:center;gap:8px;background:#151515;border:1px solid #333;border-radius:999px;padding:6px 12px;font-weight:700;margin-bottom:12px}
+.live-now::before{content:"";width:9px;height:9px;border-radius:50%;background:#ff3b30;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.meta{display:grid;gap:6px;font-size:14.5px;margin-bottom:14px}
+.meta div{display:flex;gap:9px;align-items:flex-start}
+.meta svg{width:18px;height:18px;flex:none;margin-top:2px;color:var(--y)}
+.next .btnrow{display:grid;grid-template-columns:1fr 1fr 1fr}
+.next .btnrow .btn{padding:0 8px;font-size:14px}
+.next .btn{background:#1d1d1d;border-color:#333;color:#fff}
+.next .btn.primary{background:var(--y);color:#000;border-color:var(--y)}
+
+.week{margin:22px 0 8px;display:flex;align-items:baseline;gap:10px}
+.week h3{font-size:21px;font-weight:800;text-transform:uppercase}
+.week span{font-size:13px;color:var(--mut)}
+.ev{display:block;background:var(--s1);border:1px solid var(--line);border-radius:16px;margin-bottom:10px;overflow:hidden;position:relative}
+.ev::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--tc)}
+.ev summary{list-style:none;display:flex;gap:12px;padding:12px 14px 12px 17px;cursor:pointer;align-items:center;min-height:72px}
+.ev summary::-webkit-details-marker{display:none}
+.date{width:50px;flex:none;text-align:center;border-radius:12px;background:var(--s2);padding:6px 0 5px}
+.date small{display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mut)}
+.date b{display:block;font-family:var(--head);font-weight:800;font-size:26px;line-height:1}
+.ev .info{flex:1;min-width:0}
+.ev .title{font-weight:700;font-size:15.5px;line-height:1.25;overflow-wrap:anywhere}
+.ev .sub{font-size:13.5px;color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--s2);border:1px solid var(--line);display:inline-flex;gap:5px;align-items:center}
+.tag svg{width:13px;height:13px;color:var(--tc)}
+.tag.cancel{background:#ff3b30;color:#fff;border-color:#ff3b30}
+.ev.cancelled .title{text-decoration:line-through;opacity:.7}
+.chev{width:20px;height:20px;color:var(--mut);transition:transform .2s;flex:none}
+.ev[open] .chev{transform:rotate(180deg)}
+.ev .more{padding:0 16px 16px 17px;border-top:1px solid var(--line)}
+.ev .more .meta{margin:12px 0}
+.desc{white-space:pre-wrap;font-size:14px;color:var(--tx);background:var(--s2);border-radius:12px;padding:10px 12px;margin:0 0 12px;overflow-wrap:anywhere}
+
+.empty{background:var(--s1);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin:16px 0}
+.empty h3{font-size:22px;text-transform:uppercase;margin-bottom:6px}
+.empty p{margin:0 0 12px;color:var(--mut);font-size:14.5px}
+.empty textarea{width:100%;min-height:110px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--tx);padding:10px;font:13px ui-monospace,monospace;margin:8px 0}
+.note{font-size:13px;color:var(--mut);background:var(--s2);border-radius:12px;padding:10px 12px;margin-top:12px}
+.demo-banner{background:var(--rainbow-lin);color:#000;font-weight:700;font-size:13px;border-radius:12px;padding:9px 12px;margin:10px 0;text-align:center}
+
+/* ---------- Loader ---------- */
+.loader{display:grid;place-items:center;gap:14px;padding:60px 0;color:var(--mut);font-size:14px}
+.ring{width:52px;height:52px;border-radius:50%;background:var(--rainbow);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 6px));mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 6px));animation:spin 1.1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- Sheet / Toast ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+.sheet-bg.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;max-width:640px;margin:0 auto;background:var(--s1);border-radius:24px 24px 0 0;border:1px solid var(--line);max-height:88vh;overflow:auto;transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+.sheet:not(.open){visibility:hidden;transition:transform .28s,visibility 0s .28s}
+.sheet.open{transform:none}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:var(--s3);margin:10px auto 4px}
+.sheet .inner{padding:6px 18px 8px}
+.sheet .close{position:absolute;right:12px;top:12px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--y);color:#000;font-weight:700;padding:10px 16px;border-radius:999px;z-index:60;opacity:0;transition:.25s;pointer-events:none;font-size:14px}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+
+/* ---------- Karten allgemein ---------- */
+.card{background:var(--s1);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:14px 0}
+.cardh{font-size:24px;text-transform:uppercase;font-weight:800;margin-bottom:4px}
+.mut{color:var(--mut);font-size:14px;margin:0 0 10px}
+h4{font-family:var(--head);font-size:17px;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 6px;color:var(--acc)}
+.mini{margin:0;padding-left:18px;font-size:14.5px}.mini li{margin:3px 0}
+.mini.check{list-style:none;padding-left:0}.mini.check li{padding-left:24px;position:relative}.mini.check li::before{content:"✓";position:absolute;left:2px;color:var(--acc);font-weight:800}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:4px;margin:10px 0}
+.seg button{border:0;background:none;border-radius:10px;min-height:42px;font-weight:700;font-size:14px;color:var(--mut)}
+.seg button[aria-pressed=true]{background:var(--y);color:#000}
+.seg.big button{min-height:48px;font-size:15.5px}
+.gbox{background:var(--s2);border-radius:14px;padding:12px;margin-bottom:12px}.gbox p{font-size:13.5px;color:var(--mut);margin:4px 0 10px}
+
+/* ---------- Team ---------- */
+.ava{flex:none;border-radius:16px;background:var(--s2);object-fit:cover;display:block}
+.avawrap{position:relative;flex:none;align-self:flex-start}
+.photobtn{position:absolute;right:-6px;bottom:-6px;width:34px;height:34px;border-radius:50%;border:2px solid var(--bg);background:var(--y);font-size:16px;display:grid;place-items:center;padding:0}
+.editbar .btn{white-space:nowrap;flex:none}
+.editbar{display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--card);border:1px solid var(--card-brd);box-shadow:inset 0 1px 0 var(--card-hi);border-radius:20px;padding:8px 8px 8px 14px;margin:0 0 12px;font-size:13.5px;color:var(--mut)}
+.photoprev{position:relative;width:180px;height:180px;margin:10px auto 0;border-radius:24px;overflow:hidden;background:var(--s2);border:1px solid var(--line)}
+.photoprev canvas{width:100%;height:100%;display:block}
+#phEmpty{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:14px}
+.person{display:flex;gap:14px;background:var(--s1);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.pinfo{flex:1;min-width:0}
+.prole{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--acc)}
+.person h3,.confidant h3{font-family:var(--body);font-size:17px;font-weight:700;margin:2px 0 4px}
+.ph{color:var(--mut);font-style:italic;font-weight:600!important}
+.pron{font-size:12.5px;font-weight:600;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:4px;font-style:normal;vertical-align:2px}
+.ask{font-size:14px;margin:0 0 10px;color:var(--tx)}.ask b{color:var(--mut);font-weight:600}
+.nocontact{font-size:13px;color:var(--mut)}
+.confidant{position:relative;border-radius:var(--radius);padding:16px;margin:0 0 14px;background:linear-gradient(var(--s1),var(--s1)) padding-box,var(--rainbow-lin) border-box;border:2.5px solid transparent}
+.confidant .conf-head{display:flex;gap:14px;align-items:center;margin-bottom:8px}
+.confidant p{font-size:14.5px;margin:0 0 8px}
+.clubbox{text-align:center;background:var(--s1);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin:18px 0}
+.clubbox h3{font-size:24px;text-transform:uppercase}.clubbox p{color:var(--mut);font-size:14px;margin:4px 0 12px}
+
+/* ---------- Positionen ---------- */
+.grpinfo{font-size:14.5px;background:var(--s1);border:1px solid var(--line);border-left:5px solid var(--y);border-radius:14px;padding:10px 12px;margin-bottom:10px;min-height:48px}
+.fieldwrap{border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)}
+.field{display:block;width:100%;height:auto;touch-action:manipulation}
+.pl{cursor:pointer;transition:opacity .25s}.pl:focus{outline:none}
+.pl .sel{opacity:0;transition:opacity .2s}.pl.active .sel,.pl:focus-visible .sel{opacity:1}
+.pl.dim{opacity:.18}
+.pl:not(.dim) > g{filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+.scrum{display:block;width:100%;height:auto;border-radius:14px;background:#123320}
+.scrum text{font-family:var(--head);font-weight:800;font-size:14px;text-anchor:middle}
+.scrum .opp circle{fill:#555;opacity:.6}.scrum .opp text{fill:#ddd}
+.scrum .sp{cursor:pointer}
+.scrum .cap{font-family:var(--body);font-weight:600;font-size:11.5px;fill:#fff;fill-opacity:.8;text-anchor:start}
+.scrumtext{font-size:14.5px;margin:0 0 6px;min-height:44px}
+.poshead{display:flex;gap:14px;align-items:center;margin:4px 40px 6px 0}
+.posj{width:84px;height:88px;flex:none}
+.poshead h2{font-size:30px;font-weight:800;text-transform:uppercase;line-height:1}
+.poshead .de{color:var(--mut);font-size:15px;margin-top:2px}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+@media (max-width:420px){.twocol{grid-template-columns:1fr}}
+.box{background:var(--s2);border-radius:14px;padding:10px 12px}.box h4{margin:0 0 4px;font-size:15px}.box p{margin:0;font-size:14px}
+.fit{background:var(--y);color:#000;border-radius:14px;padding:12px 14px;margin:16px 0 12px;font-size:15px}
+.posnav{display:flex;justify-content:space-between;gap:8px}
+
+/* ---------- Calls ---------- */
+.basics{background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:0 14px;margin:6px 0 10px}
+.basics summary{cursor:pointer;font-weight:700;min-height:48px;display:flex;align-items:center}
+.basics p{font-size:14px;margin:0 0 10px}
+.callpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.callpick button{text-align:left;border:1px solid var(--line);background:var(--s1);border-radius:14px;padding:10px 12px;min-height:64px}
+.callpick b{display:block;font-family:var(--head);font-size:22px;font-weight:800;text-transform:uppercase;line-height:1.05}
+.callpick span{display:block;font-size:12.5px;color:var(--mut);line-height:1.3;margin-top:2px}
+.callpick button[aria-pressed=true]{background:var(--y);border-color:var(--y);color:#000}.callpick button[aria-pressed=true] span{color:#333}
+.callcard{padding:14px}
+.callhead{margin-bottom:10px}
+.callname{font-family:var(--head);font-size:34px;font-weight:800;text-transform:uppercase;line-height:1}
+.anim{display:block;width:100%;height:auto;border-radius:14px;background:#123320}
+.anim .ent text{font-family:var(--head);font-weight:800;font-size:10px}
+.anim .flab{font-family:var(--head);font-weight:700;font-size:11px;fill:#fff;fill-opacity:.65}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--mut);margin:8px 2px}
+.legend span{display:inline-flex;gap:5px;align-items:center}
+.lg{width:12px;height:12px;border-radius:50%;display:inline-block;border:2px solid #000}
+.lg.j{background:#ffcc00}.lg.l{background:#fff}.lg.h{background:#000;border-color:#ffcc00}.lg.b{background:#000;border-color:#fff}.lg.o{background:#6b6b6b;border-color:#3a3a3a}.lg.s{background:transparent;border:2px dashed #ffcc00}
+.caption{background:var(--s2);border-radius:12px;padding:10px 12px;font-size:14.5px;min-height:64px;display:flex;gap:10px;align-items:flex-start}
+.caption .sn{flex:none;background:var(--y);color:#000;font-weight:800;font-size:12px;border-radius:8px;padding:2px 7px;margin-top:1px}
+.ctrls{display:flex;justify-content:center;gap:12px;margin:12px 0 6px}
+.cbtn{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--s2);display:grid;place-items:center;font-size:16px}
+.cbtn svg{width:22px;height:22px}
+.cbtn.main{width:60px;height:60px;background:var(--y);border-color:var(--y);color:#000}
+.dots{display:flex;justify-content:center;gap:6px;margin-bottom:6px}
+.dots i{width:22px;height:6px;border-radius:3px;background:var(--s3);cursor:pointer}
+.dots i.on{background:var(--y);opacity:.55}.dots i.cur{opacity:1}
+.expl{font-size:14.5px;margin:12px 0 0}
+.who{display:grid;gap:6px}.who div{background:var(--s2);border-radius:12px;padding:8px 12px;font-size:14px}.who b{display:block;font-size:13px;color:var(--acc)}
+.quizbar{display:flex;justify-content:space-between;font-size:14px;color:var(--mut);margin:4px 2px}.quizbar b{color:var(--tx)}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.ans{min-height:56px;border-radius:14px;border:1px solid var(--line);background:var(--s2);font-family:var(--head);font-weight:800;font-size:22px;text-transform:uppercase}
+.ans.right{background:#34c759;border-color:#34c759;color:#000}.ans.wrong{background:#ff3b30;border-color:#ff3b30;color:#fff}
+.ans:disabled{cursor:default}
+.qfb{margin-top:12px}.qfb p{font-size:15px;margin:0 0 10px}
+.wip{text-align:center;color:var(--mut);padding:40px 10px}
+.foot{text-align:center;color:var(--mut);font-size:12.5px;margin:30px 0 10px}
+
+/* =================== LIQUID GLASS =================== */
+:root{
+  --bg:#050505; --s1:#161618; --s2:rgba(255,255,255,.065); --s3:rgba(255,255,255,.13); --line:rgba(255,255,255,.09);
+  --card:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.035));
+  --card-brd:rgba(255,255,255,.10); --card-hi:rgba(255,255,255,.10);
+  --glass:rgba(28,28,30,.55); --glass-strong:rgba(22,22,24,.80); --glass-brd:rgba(255,255,255,.16); --glass-hi:rgba(255,255,255,.28);
+  --gold:linear-gradient(180deg,#ffe066 0%,#ffcc00 55%,#f0bf00 100%);
+  --body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;
+}
+[data-theme=light]{
+  --bg:#ecebe6; --s1:#fbfbf8; --s2:rgba(0,0,0,.045); --s3:rgba(0,0,0,.09); --line:rgba(0,0,0,.08);
+  --card:linear-gradient(180deg,rgba(255,255,255,.85),rgba(255,255,255,.62));
+  --card-brd:rgba(255,255,255,.9); --card-hi:rgba(255,255,255,1);
+  --glass:rgba(255,255,255,.58); --glass-strong:rgba(250,250,248,.86); --glass-brd:rgba(255,255,255,.85); --glass-hi:rgba(255,255,255,1);
+}
+body::before{content:"";position:fixed;inset:-10%;z-index:-1;pointer-events:none;
+  background:radial-gradient(42% 30% at 12% 6%,rgba(255,204,0,.24),transparent 70%),
+    radial-gradient(36% 28% at 92% 30%,rgba(255,255,255,.07),transparent 70%),
+    radial-gradient(44% 34% at 78% 98%,rgba(255,204,0,.13),transparent 70%),
+    radial-gradient(30% 24% at 6% 78%,rgba(150,90,255,.09),transparent 70%)}
+[data-theme=light] body::before{background:radial-gradient(42% 30% at 12% 6%,rgba(255,204,0,.35),transparent 70%),radial-gradient(44% 34% at 80% 96%,rgba(255,204,0,.2),transparent 70%),radial-gradient(30% 24% at 6% 78%,rgba(150,90,255,.08),transparent 70%)}
+
+/* Glas-Chrom: Header, Tabbar, Sheet, Toast */
+.appbar{background:none;border:0;backdrop-filter:none;-webkit-backdrop-filter:none;padding:8px 10px 0}
+.appbar .wrap,.tabbar nav,.toast{background:var(--glass);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);
+  border:1px solid var(--glass-brd);box-shadow:inset 0 1px 0 var(--glass-hi),inset 0 -1px 0 rgba(255,255,255,.04),0 10px 34px rgba(0,0,0,.38)}
+[data-theme=light] .appbar .wrap,[data-theme=light] .tabbar nav,[data-theme=light] .toast{box-shadow:inset 0 1px 0 var(--glass-hi),0 10px 30px rgba(0,0,0,.10)}
+.appbar .wrap{height:60px;border-radius:24px;padding:0 8px 0 9px;max-width:624px}
+.appbar img{box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.jersey-strip{display:none}
+.iconbtn{border-radius:50%;background:var(--card);border:1px solid var(--card-brd);box-shadow:inset 0 1px 0 var(--card-hi)}
+.tabbar{background:none;border:0;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0 12px calc(12px + env(safe-area-inset-bottom))}
+.tabbar nav{max-width:520px;border-radius:32px;padding:6px;gap:2px}
+.tab{height:56px;border-radius:26px;transition:background .25s,color .25s}
+.tab[aria-selected=true]{background:rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 0 0 1px rgba(255,255,255,.06)}
+[data-theme=light] .tab[aria-selected=true]{background:rgba(0,0,0,.06);box-shadow:inset 0 1px 0 rgba(255,255,255,.9)}
+.tab[aria-selected=true]::before{top:auto;bottom:5px;width:14px;height:3px;border-radius:2px}
+main.wrap{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+.sheet-bg{background:rgba(0,0,0,.35);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.sheet{left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));border-radius:34px;max-height:calc(100dvh - 90px);
+  background:var(--glass-strong);backdrop-filter:blur(34px) saturate(190%);-webkit-backdrop-filter:blur(34px) saturate(190%);
+  border:1px solid var(--glass-brd);box-shadow:inset 0 1px 0 var(--glass-hi),0 20px 60px rgba(0,0,0,.5);padding-bottom:28px}
+.sheet:not(.open){transform:translateY(calc(100% + 30px))}
+.sheet .close{border-radius:50%}
+.toast{color:var(--tx);bottom:calc(104px + env(safe-area-inset-bottom))}
+
+/* Karten aus Glas */
+.card,.ev,.person,.empty,.grpinfo,.basics,.clubbox,.callpick button,.box,.who div,.caption,.note,.gbox,.desc,.seg,.quizbar{
+  background:var(--card);border:1px solid var(--card-brd);box-shadow:inset 0 1px 0 var(--card-hi),0 6px 22px rgba(0,0,0,.18)}
+[data-theme=light] .card,[data-theme=light] .ev,[data-theme=light] .person,[data-theme=light] .empty,[data-theme=light] .grpinfo,[data-theme=light] .basics,[data-theme=light] .clubbox,[data-theme=light] .callpick button{box-shadow:inset 0 1px 0 var(--card-hi),0 6px 20px rgba(0,0,0,.06)}
+.box,.who div,.caption,.note,.gbox,.desc,.seg{box-shadow:inset 0 1px 0 var(--card-hi)}
+.quizbar{border-radius:18px;padding:10px 14px}
+.card,.person,.empty,.clubbox{border-radius:26px}
+.ev{border-radius:22px}
+.ev::before{top:14px;bottom:14px;left:6px;width:4px;border-radius:3px}
+.ev summary{padding-left:20px}
+.date{background:var(--s2);border-radius:14px;box-shadow:inset 0 1px 0 var(--card-hi)}
+.grpinfo{border-left:1px solid var(--card-brd);border-radius:20px;position:relative;padding-left:26px}
+.grpinfo::before{content:"";position:absolute;left:12px;top:16px;width:7px;height:7px;border-radius:50%;background:var(--y);box-shadow:0 0 10px var(--y)}
+.basics,.callpick button{border-radius:20px}
+.chip{background:var(--card);border:1px solid var(--card-brd);box-shadow:inset 0 1px 0 var(--card-hi)}
+.btn{background:var(--card);border:1px solid var(--card-brd);box-shadow:inset 0 1px 0 var(--card-hi);border-radius:16px}
+.btn.ghost{background:transparent;box-shadow:none}
+.cbtn{background:var(--card);border:1px solid var(--card-brd);box-shadow:inset 0 1px 0 var(--card-hi),0 4px 14px rgba(0,0,0,.2)}
+.ans{background:var(--card);border:1px solid var(--card-brd);box-shadow:inset 0 1px 0 var(--card-hi);border-radius:18px}
+.seg{border-radius:18px}.seg button{border-radius:14px}
+/* Gelbe Akzente mit Glanz */
+.btn.primary,.chip[aria-pressed=true],.seg button[aria-pressed=true],.cbtn.main,.callpick button[aria-pressed=true],.fit,.photobtn,.caption .sn{
+  background:var(--gold);color:#000;border-color:rgba(255,230,120,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(0,0,0,.08),0 6px 18px rgba(255,204,0,.22)}
+.fit{border-radius:20px}
+/* Jersey-Heros: abgerundeter, mit Glanz */
+.hero{border-radius:30px;border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.4)}
+[data-theme=light] .hero{box-shadow:0 14px 34px rgba(0,0,0,.14);border-color:rgba(0,0,0,.06)}
+.hero .top{background:var(--gold);position:relative}
+.hero .top::after{content:"";position:absolute;inset:0 0 auto 0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.35),transparent);pointer-events:none}
+.hero .top > *{position:relative;z-index:1}
+.next .top .ticon{border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+.countdown div{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+.next .btn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.next .btn.primary{background:var(--gold);color:#000}
+.confidant{border-radius:28px;box-shadow:0 10px 34px rgba(0,0,0,.3)}
+.ava{border-radius:20px;box-shadow:inset 0 1px 0 var(--card-hi)}
+.fieldwrap,.anim,.scrum{border-radius:24px}
+.fieldwrap{border:1px solid var(--card-brd);box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.photobtn{border:2px solid var(--bg)}
+.foot{margin-bottom:0}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<header class="appbar">
+  <div class="wrap">
+    <img src="data:image/png;base64,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IL0EuUh06S9IL2kiN8li2eiB2DoFIygzM1N27tzpOerXrl0rf//730XTNLn//vu9ejDXCPr000/l0UcfFUCioqKkW7duEhUV5YHfMAwPwJ9++qlomuY9379/f+973cJId500aVKxno7c3FzZsmWLbN++Xd577z3p1auX9OrVS6ZNmyZff/21ANKuXTv57LPPRCklffv2ldzcXDFNU/bs2SPvvvuuvPjiizJ//nzZsWOHXHTRRQLI5MmTQyRJWfNE3JxeEZFvfxZJ/LMIvUT0/iL0FuFCB8TnF8vEAc4Soa3MdCqFy91oK9+zwc5asxPOsG4A5kFELzsfSfM5qVtOalLBVcdE0IljLylcyUjGcD9D6O002C46iy3c8OmYmBiaNm3K/PnzWb58OWeffTaLFy/Gsiz27t3rvT4tLY0WLVrQokULJk2aBMBdd93FW2+9xeTJk7nttttYunQpqamp1K5dG4Djx49jWRb16tUjLy+PHTt2YFkWKSkpLF++nFq1amFZFunp6SQmJqJpGjt37mTmzJn8+uuv1KhRgwEDBtCnTx/GjRvHU089RVxcHMnJyV6X+NWrVzN79mxatGjB9u3befDBBxERmjdv7jUcadKkCU2bNuXDDz8kOzubuXPnsnjxYpo1a0bfvn293schbVhL0ajE7d+rFIydAw+9BznZoMeBaYQpRDPDPmYQgY8AS8nhBhCNaVil7+1QJTwTreKRs9YhZwvSOVAU8yJ9BblYkEsFuUw0uUqQKwS5Uh6RiZIjgTLr4oKXSdM0JTk5Wdq1a+cZdH369JFmzZrJK6+8IklJSV6p0tKlS8WyLPnoo48EkHPOOUdycnI89nKrGfr37y/9+vUTv98vqampMnXqVM8AdKNemzZtkhUrVni63Kvs0DQZP368F1wBZOzYsbJjxw4vH/ett96S4cOHCyDVq1f3AhMDBgyQjRvtK9T9998f8rn9+/f3omynYny6xlp6tsiwf4twuQhXiGhXinCZCJeKcLEIfYOYuGcBOdFNAtjeiXW0kvgz6XE4M24M5RJmUhowANgAET57zJdWJAO7t/ZMhAg0Inmdz7mKl0giBR0Ny6H40rZidYeSKKWoV68eX331FYMGDeL7779n4cKFpKenExsby/r160lNTaVNmzacddZZKKWYN28eAD169CAyMtJrt3r06FHAnnXXsWNHAoEA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" alt="Munich Monks RFC Logo">
+    <div class="brand"><b>Munich Monks</b><span>RFC · queer-inklusives Rugby in München</span></div>
+    <button class="iconbtn" id="themeBtn" aria-label="Hell/Dunkel umschalten">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </div>
+  <div class="jersey-strip"></div>
+</header>
+
+<main class="wrap">
+  <section id="tab-termine" aria-label="Termine"></section>
+  <section id="tab-team" aria-label="Team & Ansprechpersonen" hidden></section>
+  <section id="tab-positionen" aria-label="Positionen" hidden></section>
+  <section id="tab-calls" aria-label="Unsere Calls" hidden></section>
+</main>
+
+<div class="tabbar"><nav role="tablist">
+  <button class="tab" role="tab" data-tab="termine" aria-selected="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>Termine</button>
+  <button class="tab" role="tab" data-tab="team" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6 0 4.4 1.6 5 4.4"/></svg>Team</button>
+  <button class="tab" role="tab" data-tab="positionen" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="16" height="19" rx="2"/><path d="M4 7h16M4 17h16M4 12h16"/><path d="M10 2.5v2.2M14 2.5v2.2M10 2.5h4"/></svg>Positionen</button>
+  <button class="tab" role="tab" data-tab="calls" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9.5" ry="5.8" transform="rotate(-35 12 12)"/><path d="M8.6 15.4l6.8-6.8M10.3 11.3l2.4 2.4M12.2 9.6l2.2 2.2"/></svg>Calls</button>
+</nav></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="jc"><path d="M-6,-14 Q0,-9 6,-14 L15,-9 L13,-1 L9,-2 L9,19 L-9,19 L-9,-2 L-13,-1 L-15,-9 Z"/></clipPath></defs></svg>
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div>
+  <button class="iconbtn close" id="sheetClose" aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="inner" id="sheetInner"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ======================================================================
+   APP-CODE (normalerweise nicht anfassen)
+   ====================================================================== */
+const BOOT_HTML = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = {
+  get(k, d = null) { try { const v = localStorage.getItem("mm_" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("mm_" + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem("mm_" + k); } catch (e) {} }
+};
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 1800); }
+async function copyText(txt) { try { await navigator.clipboard.writeText(txt); toast("Kopiert ✓"); } catch (e) { toast("Kopieren nicht möglich"); } }
+
+const ICON = {
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="8" y="8" width="13" height="13" rx="3"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
+  map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>',
+  chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+  upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>',
+  people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6 0 4.4 1.6 5 4.4"/></svg>',
+};
+
+/* ---------- Sheet ---------- */
+function openSheet(html) { $("#sheetInner").innerHTML = html; $("#sheet").classList.add("open"); $("#sheetBg").classList.add("open"); $("#sheet").scrollTop = 0; }
+function closeSheet() { $("#sheet").classList.remove("open"); $("#sheetBg").classList.remove("open"); document.dispatchEvent(new Event("sheetclosed")); }
+$("#sheetBg").onclick = closeSheet; $("#sheetClose").onclick = closeSheet;
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+
+/* ---------- Theme ---------- */
+(function () {
+  const t = store.get("theme", "dark"); document.documentElement.dataset.theme = t;
+  $("#themeBtn").onclick = () => { const n = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = n; store.set("theme", n); };
+})();
+
+/* ---------- Router ---------- */
+const TABS = ["termine", "team", "positionen", "calls"];
+const onShow = {};
+function showTab(name) {
+  if (!TABS.includes(name)) name = "termine";
+  for (const t of TABS) $("#tab-" + t).hidden = t !== name;
+  $$(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  if (location.hash.slice(1) !== name) { try { history.replaceState(null, "", "#" + name); } catch (e) { location.hash = name; } }
+  window.scrollTo({ top: 0 });
+  onShow[name] && onShow[name]();
+}
+$$(".tab").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+
+/* ======================================================================
+   ICS-PARSER inkl. RRULE + Zeitzonen
+   ====================================================================== */
+const TZ = CONFIG.TIMEZONE;
+const _dtf = {};
+function dtf(tz) { return _dtf[tz] || (_dtf[tz] = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })); }
+function validTz(tz) { try { dtf(tz); return true; } catch (e) { return false; } }
+function wallParts(t, tz = TZ) { const p = {}; for (const x of dtf(tz).formatToParts(new Date(t))) p[x.type] = x.value; return { y: +p.year, m: +p.month, d: +p.day, h: (+p.hour) % 24, mi: +p.minute, s: +p.second }; }
+function tzOffset(t, tz) { const w = wallParts(t, tz); return Date.UTC(w.y, w.m - 1, w.d, w.h, w.mi, w.s) - Math.floor(t / 1000) * 1000; }
+function zonedToUtc(f, tz) {
+  const guess = Date.UTC(f.y, f.m - 1, f.d, f.h || 0, f.mi || 0, f.s || 0);
+  const o1 = tzOffset(guess, tz); let t = guess - o1;
+  const o2 = tzOffset(t, tz); if (o2 !== o1) t = guess - o2;
+  return t;
+}
+const unesc = s => s.replace(/\\n/gi, "\n").replace(/\\([,;\\])/g, "$1").trim();
+function parseDateVal(val, params = {}) {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/.exec(String(val).trim());
+  if (!m) return null;
+  const f = { y: +m[1], m: +m[2], d: +m[3], h: +(m[4] || 0), mi: +(m[5] || 0), s: +(m[6] || 0) };
+  let tz = params.TZID || null; if (tz && !validTz(tz)) tz = TZ;
+  return { f, allDay: !m[4] || params.VALUE === "DATE", utc: !!m[7], tz: m[7] ? "UTC" : (tz || TZ) };
+}
+function toInstant(dv) { return dv.utc ? Date.UTC(dv.f.y, dv.f.m - 1, dv.f.d, dv.f.h, dv.f.mi, dv.f.s) : zonedToUtc(dv.f, dv.tz); }
+function parseDuration(v) {
+  const m = /^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim()); if (!m) return null;
+  const ms = (((+m[2] || 0) * 7 + (+m[3] || 0)) * 86400 + (+m[4] || 0) * 3600 + (+m[5] || 0) * 60 + (+m[6] || 0)) * 1000;
+  return m[1] === "-" ? -ms : ms;
+}
+const WD = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
+function parseRRule(v) {
+  const r = {};
+  for (const part of v.split(";")) {
+    const [k, val] = part.split("="); if (!val) continue;
+    switch (k.toUpperCase()) {
+      case "FREQ": r.freq = val.toUpperCase(); break;
+      case "INTERVAL": r.interval = Math.max(1, +val); break;
+      case "COUNT": r.count = +val; break;
+      case "UNTIL": r.until = parseDateVal(val); break;
+      case "WKST": r.wkst = WD[val.toUpperCase()]; break;
+      case "BYDAY": r.byday = val.split(",").map(s => { const mm = /^([+-]?\d+)?([A-Z]{2})$/i.exec(s.trim()); return mm ? { n: mm[1] ? +mm[1] : 0, wd: WD[mm[2].toUpperCase()] } : null; }).filter(Boolean); break;
+      case "BYMONTHDAY": r.bymonthday = val.split(",").map(Number); break;
+      case "BYSETPOS": r.bysetpos = val.split(",").map(Number); break;
+    }
+  }
+  return r;
+}
+function parseLine(line) {
+  let i = 0, q = false;
+  for (; i < line.length; i++) { const c = line[i]; if (c === '"') q = !q; else if (c === ":" && !q) break; }
+  const head = line.slice(0, i), value = line.slice(i + 1);
+  const parts = head.split(";"); const name = parts.shift().toUpperCase();
+  const params = {};
+  for (const p of parts) { const k = p.indexOf("="); if (k > 0) params[p.slice(0, k).toUpperCase()] = p.slice(k + 1).replace(/^"|"$/g, ""); }
+  return { name, params, value };
+}
+function parseICS(text) {
+  const lines = text.replace(/\r\n?/g, "\n").replace(/\n[ \t]/g, "").split("\n");
+  const evs = []; let cur = null, depth = 0;
+  for (const raw of lines) {
+    if (!raw.trim()) continue;
+    const { name, params, value } = parseLine(raw);
+    if (name === "BEGIN") { if (value.trim().toUpperCase() === "VEVENT") { cur = { exdates: [] }; depth = 0; } else if (cur) depth++; continue; }
+    if (name === "END") { if (value.trim().toUpperCase() === "VEVENT") { if (cur) evs.push(cur); cur = null; } else if (cur && depth) depth--; continue; }
+    if (!cur || depth) continue;
+    switch (name) {
+      case "SUMMARY": cur.summary = unesc(value); break;
+      case "DESCRIPTION": cur.description = unesc(value); break;
+      case "LOCATION": cur.location = unesc(value); break;
+      case "UID": cur.uid = value.trim(); break;
+      case "STATUS": cur.status = value.trim().toUpperCase(); break;
+      case "CATEGORIES": cur.categories = unesc(value); break;
+      case "URL": cur.url = value.trim(); break;
+      case "DTSTART": cur.dtstart = parseDateVal(value, params); break;
+      case "DTEND": cur.dtend = parseDateVal(value, params); break;
+      case "DURATION": cur.duration = parseDuration(value); break;
+      case "RRULE": cur.rrule = parseRRule(value); break;
+      case "EXDATE": for (const v of value.split(",")) { const d = parseDateVal(v, params); if (d) cur.exdates.push(d); } break;
+      case "RECURRENCE-ID": cur.recurrenceId = parseDateVal(value, params); break;
+    }
+  }
+  return evs;
+}
+function* rruleInstants(dv, r, to) {
+  const DAY = 864e5;
+  const tz = dv.utc ? TZ : dv.tz;
+  const startT = toInstant(dv);
+  const w = dv.utc ? wallParts(startT, TZ) : dv.f;
+  let until = Infinity;
+  if (r.until) until = toInstant(r.until) + (r.until.allDay ? DAY - 1 : 0);
+  const d0 = Date.UTC(w.y, w.m - 1, w.d);
+  const interval = r.interval || 1;
+  let count = 0;
+  for (let period = 0; period < 3000; period++) {
+    let c = [];
+    if (r.freq === "DAILY") c = [d0 + period * interval * DAY];
+    else if (r.freq === "WEEKLY") {
+      const wk = r.wkst ?? 1, dow0 = new Date(d0).getUTCDay();
+      const ws = d0 - ((dow0 - wk + 7) % 7) * DAY + period * interval * 7 * DAY;
+      const days = r.byday && r.byday.length ? r.byday.map(b => b.wd) : [dow0];
+      c = days.map(wd => ws + ((wd - wk + 7) % 7) * DAY);
+    } else if (r.freq === "MONTHLY") {
+      const tot = (w.m - 1) + period * interval, y = w.y + Math.floor(tot / 12), m = tot % 12;
+      const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+      if (r.bymonthday && r.bymonthday.length) c = r.bymonthday.map(n => n > 0 ? n : dim + n + 1).filter(n => n >= 1 && n <= dim).map(n => Date.UTC(y, m, n));
+      else if (r.byday && r.byday.length) {
+        for (const b of r.byday) {
+          const all = []; for (let dd = 1; dd <= dim; dd++) if (new Date(Date.UTC(y, m, dd)).getUTCDay() === b.wd) all.push(Date.UTC(y, m, dd));
+          if (b.n) { const x = b.n > 0 ? all[b.n - 1] : all[all.length + b.n]; if (x != null) c.push(x); } else c.push(...all);
+        }
+        if (r.bysetpos && r.bysetpos.length) { c.sort((a, b) => a - b); c = r.bysetpos.map(p => p > 0 ? c[p - 1] : c[c.length + p]).filter(x => x != null); }
+      } else if (w.d <= dim) c = [Date.UTC(y, m, w.d)];
+    } else if (r.freq === "YEARLY") {
+      const y = w.y + period * interval, dt = Date.UTC(y, w.m - 1, w.d);
+      if (new Date(dt).getUTCDate() === w.d) c = [dt];
+    } else { yield startT; return; }
+    c.sort((a, b) => a - b);
+    for (const ds of c) {
+      if (ds < d0) continue;
+      const D = new Date(ds);
+      const t = zonedToUtc({ y: D.getUTCFullYear(), m: D.getUTCMonth() + 1, d: D.getUTCDate(), h: dv.allDay ? 0 : w.h, mi: dv.allDay ? 0 : w.mi, s: dv.allDay ? 0 : w.s }, tz);
+      if (t < startT) continue;
+      if (t > until) return;
+      if (r.count && count >= r.count) return;
+      count++;
+      if (t > to) return;
+      yield t;
+    }
+  }
+}
+function expandEvents(raw, from, to) {
+  const out = [], overrides = new Map();
+  for (const e of raw) if (e.recurrenceId && e.uid) { const s = overrides.get(e.uid) || new Set(); s.add(toInstant(e.recurrenceId)); overrides.set(e.uid, s); }
+  for (const e of raw) {
+    if (!e.dtstart) continue;
+    const start = toInstant(e.dtstart);
+    let dur = e.dtend ? toInstant(e.dtend) - start : (e.duration != null ? e.duration : (e.dtstart.allDay ? 864e5 : 0));
+    if (dur < 0) dur = 0;
+    if (!e.rrule || e.recurrenceId) { if (start + dur >= from && start <= to) out.push(makeEvent(e, start, dur)); continue; }
+    const ex = new Set(e.exdates.map(toInstant)), ov = overrides.get(e.uid);
+    for (const t of rruleInstants(e.dtstart, e.rrule, to)) {
+      if (ex.has(t) || (ov && ov.has(t)) || t + dur < from) continue;
+      out.push(makeEvent(e, t, dur));
+    }
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+
+/* ---------- Typ & Team erkennen ---------- */
+const TYPES = {
+  training: { label: "Training", plural: "Trainings", color: "var(--c-training)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l6.5 16h-13z"/><path d="M3.5 21h17M9 11.5h6M7.6 15h8.8"/></svg>' },
+  spiel: { label: "Spiel", plural: "Spiele", color: "var(--c-spiel)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9.5" ry="5.8" transform="rotate(-35 12 12)"/><path d="M8.6 15.4l6.8-6.8M10.3 11.3l2.4 2.4M12.2 9.6l2.2 2.2"/></svg>' },
+  turnier: { label: "Turnier", plural: "Turniere", color: "var(--c-turnier)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 3.5h9v5.5a4.5 4.5 0 0 1-9 0z"/><path d="M7.5 5.5H4.5a3 3 0 0 0 3.4 4.2M16.5 5.5h3a3 3 0 0 1-3.4 4.2M12 13.5v3.5M8 21h8M9.5 17h5"/></svg>' },
+  social: { label: "Social/Event", plural: "Socials & Events", color: "var(--c-social)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h6l-.6 6.2a2.4 2.4 0 0 1-4.8 0z"/><path d="M8 11.6V19M5.5 19h5"/><path d="M14 5h5.5l-.6 5.5a2.2 2.2 0 0 1-4.3 0z"/><path d="M16.8 12.7V19M14.5 19h4.6"/></svg>' },
+};
+function classify(e) {
+  const s = [e.summary, e.categories].filter(Boolean).join(" ").toLowerCase();
+  let type = "social";
+  if (/turnier|tournament|\bcup\b|bingham|\bigr\b|festival|sevens|\b7s\b|\b10s\b|\bxv\b.*turnier/.test(s)) type = "turnier";
+  else if (/training|\btrain\b|practice|übungseinheit|fitness|athletik/.test(s)) type = "training";
+  else if (/liga|league|spieltag|punktspiel|heimspiel|auswärts|\bmatch\b|\bgame\b|\bspiel\b|freundschaftsspiel|friendly|\bvs\.?\b|\bgegen\b| - /.test(s)) type = "spiel";
+  let sub = "";
+ if (type === "training") sub = /indoor|halle/.test(s) ? "Training · indoor" : /outdoor|draußen|platz/.test(s) ? "Training · outdoor" : "";
+  if (type === "spiel") sub = /liga|league|spieltag|punktspiel/.test(s) ? "Ligaspiel" : (/freundschaft|friendly/.test(s) ? "Freundschaftsspiel" : "");
+  const fl = /flinta|frauen|women|ladies|damen/.test(s);
+  const mx = /mixed|herren|\bmen'?s?\b/.test(s.replace(/women/g, ""));
+  const team = fl && mx ? "beide" : fl ? "flinta" : mx ? "mixed" : "alle";
+  return { type, sub, team };
+}
+function makeEvent(e, start, dur) {
+  const c = classify(e);
+  return {
+    id: (e.uid || e.summary || "ev") + "@" + start, title: e.summary || "Termin", desc: e.description || "",
+    loc: (e.location || "").replace(/,\s*(Deutschland|Germany)$/i, ""), url: e.url || "", start, end: start + dur, allDay: !!e.dtstart.allDay,
+    cancelled: e.status === "CANCELLED" || /abgesagt|cancel+ed|fällt aus/i.test(e.summary || ""), ...c
+  };
+}
+
+/* ---------- Datumsformat (immer Europe/Berlin) ---------- */
+const fmt = (o) => new Intl.DateTimeFormat("de-DE", { timeZone: TZ, ...o });
+const F = {
+  wd: fmt({ weekday: "short" }), day: fmt({ day: "numeric" }), mon: fmt({ month: "short" }),
+  long: fmt({ weekday: "long", day: "numeric", month: "long" }), time: fmt({ hour: "2-digit", minute: "2-digit" }),
+  dm: fmt({ day: "2-digit", month: "2-digit" }), stamp: fmt({ day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
+};
+const berlinDayKey = t => { const w = wallParts(t); return Date.UTC(w.y, w.m - 1, w.d); };
+function timeRange(ev) {
+  if (ev.allDay) { const days = Math.round((ev.end - ev.start) / 864e5); return days > 1 ? "ganztägig · bis " + F.dm.format(ev.end - 1) : "ganztägig"; }
+  const sameDay = berlinDayKey(ev.start) === berlinDayKey(Math.max(ev.start, ev.end - 1));
+  { const w = wallParts(ev.start); if (w.h === 0 && w.mi === 0) return "Uhrzeit folgt"; }
+  if (ev.end <= ev.start) return F.time.format(ev.start) + " Uhr";
+  return F.time.format(ev.start) + "–" + (sameDay ? "" : F.dm.format(ev.end) + " ") + F.time.format(ev.end) + " Uhr";
+}
+function weekInfo(t) {
+  const day = berlinDayKey(t), dow = (new Date(day).getUTCDay() + 6) % 7, mon = day - dow * 864e5;
+  const th = new Date(mon + 3 * 864e5), y = th.getUTCFullYear(), jan4 = Date.UTC(y, 0, 4);
+  const kw = 1 + Math.round(((th - jan4) / 864e5 - 3 + ((new Date(jan4).getUTCDay() + 6) % 7)) / 7);
+  return { mon, kw };
+}
+const fmtUTC = o => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", ...o });
+const FU = { dm: fmtUTC({ day: "numeric", month: "short" }) };
+
+/* ---------- Links ---------- */
+const mapsLinks = loc => ({ g: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(loc), a: "https://maps.apple.com/?q=" + encodeURIComponent(loc) });
+function gcalLink(ev) {
+  const z = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const d = t => { const w = wallParts(t); return "" + w.y + String(w.m).padStart(2, "0") + String(w.d).padStart(2, "0"); };
+  const dates = ev.allDay ? d(ev.start) + "/" + d(Math.max(ev.end, ev.start + 864e5)) : z(ev.start) + "/" + z(Math.max(ev.end, ev.start + 36e5));
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(ev.title) + "&dates=" + dates +
+    "&details=" + encodeURIComponent(ev.desc || "") + "&location=" + encodeURIComponent(ev.loc || "") + "&ctz=" + encodeURIComponent(TZ);
+}
+function eventText(ev) { return [ev.title, F.long.format(ev.start) + ", " + timeRange(ev), ev.loc, ev.desc].filter(Boolean).join("\n"); }
+
+/* ======================================================================
+   TAB: TERMINE
+   ====================================================================== */
+const Cal = { events: [], source: null, at: null, weeks: 6, filter: store.get("filter", { type: "alle", team: "alle" }), timer: null };
+
+async function fetchText(url, ms = 8000) {
+  const ac = new AbortController(); const to = setTimeout(() => ac.abort(), ms);
+  try { const r = await fetch(url, { cache: "no-store", signal: ac.signal }); if (!r.ok) throw new Error(r.status); return await r.text(); }
+  finally { clearTimeout(to); }
+}
+async function loadCalendar() {
+  $("#tab-termine").innerHTML = '<div class="loader"><div class="ring"></div>Termine werden geladen …</div>';
+  const urls = [CONFIG.PROXY_URL, CONFIG.ICS_URL].filter(Boolean);
+  for (const u of urls) {
+    try { const t = await fetchText(u); if (t.includes("BEGIN:VCALENDAR")) { store.set("ics", { text: t, at: Date.now(), src: "live" }); return useICS(t, "live", Date.now()); } } catch (e) { /* CSP/CORS/Netz */ }
+  }
+  const cached = store.get("ics"), snapAt = Date.parse(SNAPSHOT.stand) || 0;
+  if (cached && cached.text && cached.at > snapAt) useICS(cached.text, cached.src === "live" ? "cache" : cached.src, cached.at);
+  else if (SNAPSHOT.events.length) useSnapshot();
+  else if (EMBEDDED_ICS.trim()) useICS(EMBEDDED_ICS, "embedded", null);
+  else { Cal.source = null; renderTermine(); }
+  if (store.get("gcal_ok")) googleRefresh(false);
+}
+function useICS(text, source, at) {
+  try {
+    const now = Date.now();
+    Cal.events = expandEvents(parseICS(text), now - 6 * 36e5, now + CONFIG.HORIZON_DAYS * 864e5);
+    Cal.source = source; Cal.at = at;
+  } catch (e) { console.error(e); Cal.source = null; toast("Kalender konnte nicht gelesen werden"); }
+  renderTermine();
+}
+function filtered() {
+  const f = Cal.filter, now = Date.now();
+  return Cal.events.filter(e => e.end > now || (e.end === e.start && e.start > now - 2 * 36e5))
+    .filter(e => f.type === "alle" || e.type === f.type)
+    .filter(e => f.team === "alle" || e.team === f.team || e.team === "alle" || e.team === "beide");
+}
+function sourceLine() {
+  const map = {
+    live: ['', "Live aus SpielerPlus · " + F.stamp.format(Cal.at)],
+    google: ['', "Live aus Google Kalender · " + F.stamp.format(Cal.at)],
+    snapshot: ['', "SpielerPlus-Termine · Stand " + (Cal.at ? F.stamp.format(Cal.at) : "–")],
+    cache: ['warn', "Offline-Stand vom " + (Cal.at ? F.stamp.format(Cal.at) : "–")],
+    import: ['warn', "Importierte Datei · Stand " + (Cal.at ? F.stamp.format(Cal.at) : "–")],
+    embedded: ['warn', "Fest eingebauter Kalender-Stand"],
+    demo: ['demo', "Beispieldaten – nicht echt"],
+  };
+  const [cls, txt] = map[Cal.source] || ['warn', ""];
+  return `<div class="status"><span class="led ${cls}"></span><span>${esc(txt)}</span><button id="srcBtn">Datenquelle</button></div>`;
+}
+function typeChip(key, label, color) {
+  return `<button class="chip" data-ft="${key}" aria-pressed="${Cal.filter.type === key}">${color ? `<span class="dot" style="background:${color}"></span>` : ""}${label}</button>`;
+}
+function teamChip(key, label) { return `<button class="chip" data-fteam="${key}" aria-pressed="${Cal.filter.team === key}">${label}</button>`; }
+function teamTag(e) { return e.team === "flinta" ? '<span class="tag">FLINTA*</span>' : e.team === "mixed" ? '<span class="tag">Mixed</span>' : e.team === "beide" ? '<span class="tag">Mixed + FLINTA*</span>' : ""; }
+function typeTag(e) { const T = TYPES[e.type]; return `<span class="tag" style="--tc:${T.color}">${T.icon}${esc(e.sub || T.label)}</span>`; }
+
+function renderTermine() {
+  clearInterval(Cal.timer);
+  const root = $("#tab-termine");
+  if (!Cal.source) { root.innerHTML = emptyState(); bindEmpty(); return; }
+  const list = filtered();
+  const next = list[0];
+  let html = (Cal.source === "demo" ? '<div class="demo-banner">🌈 Vorschau mit Beispieldaten – das sind keine echten Termine</div>' : "") + sourceLine();
+  html += `<div class="filter-label">Art</div><div class="chips">${typeChip("alle", "Alle")}${Object.entries(TYPES).map(([k, T]) => typeChip(k, T.plural, T.color)).join("")}</div>`;
+  html += `<div class="filter-label">Team</div><div class="chips">${teamChip("alle", "Alle Teams")}${teamChip("mixed", "Mixed")}${teamChip("flinta", "FLINTA*")}</div>`;
+
+  if (!next) {
+    html += `<div class="empty"><h3>Nix los? 🤔</h3><p>Für diese Filter gibt's gerade keine kommenden Termine. Probier mal „Alle“.</p></div>`;
+  } else {
+    const T = TYPES[next.type], running = next.start <= Date.now();
+    html += `<div class="hero next" style="--tc:${T.color}">
+      <div class="top"><div class="ticon">${T.icon}</div><div style="min-width:0"><small>Nächster Termin · ${esc(T.label)}</small><h2>${esc(next.title)}</h2></div></div>
+      <div class="stripe"></div>
+      <div class="body">
+        ${running ? '<div class="live-now">Läuft gerade</div>' : `<div class="countdown" id="cd"><div><b>–</b><span>Tage</span></div><div><b>–</b><span>Std</span></div><div><b>–</b><span>Min</span></div><div><b>–</b><span>Sek</span></div></div>`}
+        <div class="meta">
+          <div>${ICON.cal}<span>${esc(F.long.format(next.start))}</span></div>
+          <div>${ICON.clock}<span>${esc(timeRange(next))}</span></div>
+          ${next.loc ? `<div>${ICON.pin}<span>${esc(next.loc)}</span></div>` : ""}
+        </div>
+        ${next.cancelled ? '<p style="margin-bottom:12px"><span class="tag cancel">Abgesagt</span></p>' : ""}
+        <div class="btnrow">
+          ${next.loc ? `<a class="btn primary" href="${mapsLinks(next.loc).g}" target="_blank" rel="noopener">${ICON.map}Route</a>` : ""}
+          <a class="btn" href="${gcalLink(next)}" target="_blank" rel="noopener">${ICON.cal}Kalender</a>
+          <button class="btn" data-detail="${esc(next.id)}">Details</button>
+        </div>
+      </div></div>`;
+    const rest = list.slice(1);
+    let curWeek = null;
+    const thisMon = weekInfo(Date.now()).mon;
+    let shownWeeks = 0, hiddenCount = 0;
+    for (const e of rest) {
+      const wi = weekInfo(e.start);
+      if (wi.mon !== curWeek) {
+        if (shownWeeks >= Cal.weeks) { hiddenCount = rest.length - rest.indexOf(e); break; }
+        shownWeeks++;
+        curWeek = wi.mon;
+        const diff = Math.round((wi.mon - thisMon) / (7 * 864e5));
+        const name = diff === 0 ? "Diese Woche" : diff === 1 ? "Nächste Woche" : "KW " + wi.kw;
+        html += `<div class="week"><h3>${name}</h3><span>${FU.dm.format(wi.mon)} – ${FU.dm.format(wi.mon + 6 * 864e5)}</span></div>`;
+      }
+      html += eventCard(e);
+    }
+    if (hiddenCount) html += `<div style="text-align:center;margin:16px 0"><button class="btn" id="moreBtn">Weitere ${hiddenCount} Termine anzeigen</button></div>`;
+    if (!rest.length) html += '<p class="foot">Danach ist (noch) nichts eingetragen.</p>';
+  }
+  html += `<p class="foot">Alle Zeiten in deutscher Zeit (Europe/Berlin).</p>`;
+  root.innerHTML = html;
+
+  $$("[data-ft]", root).forEach(b => b.onclick = () => { Cal.filter.type = b.dataset.ft; store.set("filter", Cal.filter); renderTermine(); });
+  $$("[data-fteam]", root).forEach(b => b.onclick = () => { Cal.filter.team = b.dataset.fteam; store.set("filter", Cal.filter); renderTermine(); });
+  $$("[data-copy]", root).forEach(b => b.onclick = () => { const ev = Cal.events.find(x => x.id === b.dataset.copy); ev && copyText(eventText(ev)); });
+  $$("[data-detail]", root).forEach(b => b.onclick = () => { const el = root.querySelector(`details[data-id="${CSS.escape(b.dataset.detail)}"]`); if (el) { el.open = true; el.scrollIntoView({ behavior: "smooth", block: "center" }); } else openEventSheet(b.dataset.detail); });
+  $("#srcBtn").onclick = openSourceSheet;
+  const mb = $("#moreBtn", root); if (mb) mb.onclick = () => { const y = scrollY; Cal.weeks += 8; renderTermine(); scrollTo(0, y); };
+  if (next && next.start > Date.now()) tick(next.start);
+}
+function eventCard(e) {
+  const T = TYPES[e.type], ml = e.loc ? mapsLinks(e.loc) : null;
+  return `<details class="ev ${e.cancelled ? "cancelled" : ""}" data-id="${esc(e.id)}" style="--tc:${T.color}">
+    <summary>
+      <div class="date"><small>${esc(F.wd.format(e.start).replace(".", ""))}</small><b>${F.day.format(e.start)}</b><small>${esc(F.mon.format(e.start).replace(".", ""))}</small></div>
+      <div class="info"><div class="title">${esc(e.title)}</div>
+        <div class="sub">${esc(timeRange(e))}${e.loc ? " · " + esc(e.loc) : ""}</div>
+        <div class="tags">${typeTag(e)}${teamTag(e)}${e.cancelled ? '<span class="tag cancel">Abgesagt</span>' : ""}</div></div>
+      ${ICON.chev}
+    </summary>
+    <div class="more">${eventBody(e)}</div>
+  </details>`;
+}
+function eventBody(e) {
+  const ml = e.loc ? mapsLinks(e.loc) : null;
+  return `<div class="meta">
+      <div>${ICON.cal}<span>${esc(F.long.format(e.start))}</span></div>
+      <div>${ICON.clock}<span>${esc(timeRange(e))}</span></div>
+      ${e.loc ? `<div>${ICON.pin}<span>${esc(e.loc)}</span></div>` : ""}
+    </div>
+    ${descHTML(e)}
+    <div class="btnrow">
+      ${ml ? `<a class="btn sm" href="${ml.g}" target="_blank" rel="noopener">${ICON.map}Google Maps</a><a class="btn sm" href="${ml.a}" target="_blank" rel="noopener">${ICON.map}Apple Karten</a>` : ""}
+      <a class="btn sm primary" href="${gcalLink(e)}" target="_blank" rel="noopener">${ICON.cal}In Kalender übernehmen</a>
+      ${spLink(e) ? `<a class="btn sm" href="${esc(spLink(e))}" target="_blank" rel="noopener">✅ Zu-/Absagen in SpielerPlus</a>` : ""}
+      <button class="btn sm" data-copy="${esc(e.id)}">${ICON.copy}Kopieren</button>
+    </div>`;
+}
+const URL_RE = /https?:\/\/\S+/;
+function spLink(e) { const m = URL_RE.exec(e.desc || ""); return m && /spielerplus|teamplus/i.test(m[0]) ? m[0] : ""; }
+function descHTML(e) { const t = (e.desc || "").replace(spLink(e) || "\u0000", "").trim(); return t ? `<p class="desc">${esc(t)}</p>` : ""; }
+function openEventSheet(id) { const e = Cal.events.find(x => x.id === id); if (!e) return; openSheet(`<h2 style="font-size:26px;margin:4px 40px 10px 0">${esc(e.title)}</h2>${eventBody(e)}`); $$("#sheetInner [data-copy]").forEach(b => b.onclick = () => copyText(eventText(e))); }
+function tick(target) {
+  const cd = $("#cd"); if (!cd) return;
+  const b = $$("b", cd);
+  const upd = () => {
+    let s = Math.max(0, Math.floor((target - Date.now()) / 1000));
+    if (s <= 0) { clearInterval(Cal.timer); renderTermine(); return; }
+    const d = Math.floor(s / 86400); s -= d * 86400; const h = Math.floor(s / 3600); s -= h * 3600; const m = Math.floor(s / 60); s -= m * 60;
+    b[0].textContent = d; b[1].textContent = String(h).padStart(2, "0"); b[2].textContent = String(m).padStart(2, "0"); b[3].textContent = String(s).padStart(2, "0");
+  };
+  upd(); Cal.timer = setInterval(upd, 1000);
+}
+
+/* ---------- Leerer Zustand / Import ---------- */
+function emptyState() {
+  return `<div class="hero"><div class="top"><small>Termine</small><h1>Wann wird gespielt?</h1></div><div class="stripe"></div>
+    <div class="body"><p>Hier erscheinen alle Trainings, Spiele, Turniere und Socials aus unserem SpielerPlus-Kalender.</p></div></div>
+    <div class="empty">
+      <h3>Live-Abruf blockiert</h3>
+      <p>Diese Seite darf aus Sicherheitsgründen keine Daten direkt von SpielerPlus laden. Du kannst den Kalender aber als Datei importieren – das dauert 20 Sekunden:</p>
+      <ol style="margin:0 0 14px;padding-left:20px;font-size:14.5px;color:var(--mut)">
+        <li><a href="${esc(CONFIG.ICS_URL)}" target="_blank" rel="noopener">Kalender-Datei (.ics) öffnen</a> und speichern</li>
+        <li>Hier importieren:</li>
+      </ol>
+      <div class="btnrow">
+        <label class="btn primary">${ICON.upload}.ics-Datei wählen<input type="file" id="icsFile" accept=".ics,text/calendar" class="sr"></label>
+        <button class="btn" id="pasteToggle">${ICON.copy}Text einfügen</button>
+      </div>
+      <div id="pasteBox" hidden>
+        <textarea id="icsText" placeholder="BEGIN:VCALENDAR …"></textarea>
+        <button class="btn primary" id="icsTextGo">Übernehmen</button>
+      </div>
+      <div class="note">Der Import bleibt nur auf diesem Gerät gespeichert. <button class="btn sm ghost" id="demoBtn" style="margin-top:8px">🌈 Vorschau mit Beispieldaten</button></div>
+    </div>`;
+}
+function importText(t, src = "import") {
+  if (!/BEGIN:VCALENDAR/.test(t)) { toast("Das ist keine Kalender-Datei"); return; }
+  if (src === "import") store.set("ics", { text: t, at: Date.now(), src: "import" });
+  closeSheet(); useICS(t, src, Date.now()); toast(src === "demo" ? "Beispieldaten geladen" : "Kalender importiert ✓");
+}
+function bindEmpty(scope = document) {
+  const f = $("#icsFile", scope); if (f) f.onchange = async () => { const file = f.files[0]; if (file) importText(await file.text()); };
+  const pt = $("#pasteToggle", scope); if (pt) pt.onclick = () => { $("#pasteBox", scope).hidden = false; $("#icsText", scope).focus(); };
+  const go = $("#icsTextGo", scope); if (go) go.onclick = () => importText($("#icsText", scope).value);
+  const d = $("#demoBtn", scope); if (d) d.onclick = () => importText(demoICS(), "demo");
+}
+function openSourceSheet() {
+  openSheet(`<h2 style="font-size:26px;margin:4px 40px 6px 0">Datenquelle</h2>
+    <p style="color:var(--mut);font-size:14.5px;margin:0 0 14px">${esc(sourceLine().replace(/<[^>]+>/g, " ").replace("Datenquelle", "").trim())}</p>
+    ${window.claude ? `<div class="gbox"><b>Live aus Google Kalender</b><p>Nur für Personen, die den Kalender „TeamPlus - Munich Monks“ in Google haben und Google Calendar mit claude.ai verbunden haben.</p>
+      <button class="btn primary" id="gBtn">${ICON.refresh}Aus Google Kalender aktualisieren</button><p id="gMsg" hidden></p></div>` : ""}
+    <div class="btnrow" style="margin-bottom:12px">
+      <button class="btn" id="reloadBtn">${ICON.refresh}Neu laden</button>
+      <label class="btn">${ICON.upload}.ics importieren<input type="file" id="icsFile" accept=".ics,text/calendar" class="sr"></label>
+      <button class="btn" id="pasteToggle">${ICON.copy}Text einfügen</button>
+    </div>
+    <div id="pasteBox" hidden><textarea id="icsText" placeholder="BEGIN:VCALENDAR …" style="width:100%;min-height:110px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--tx);padding:10px;font:13px ui-monospace,monospace"></textarea><button class="btn primary" id="icsTextGo">Übernehmen</button></div>
+    <div class="note"><b>Kalender aufs Handy abonnieren:</b> Öffne den SpielerPlus-Link in Safari/Chrome bzw. füge ihn in deiner Kalender-App als „Abonnement“ hinzu.<br>
+      <a href="${esc(CONFIG.ICS_URL)}" target="_blank" rel="noopener">SpielerPlus-Kalender öffnen</a> · <button class="btn sm ghost" id="copyIcs">Link kopieren</button></div>
+    <div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" id="clearIcs">Gespeicherten Stand löschen</button><button class="btn sm ghost" id="demoBtn">🌈 Beispieldaten</button></div>`);
+  const s = $("#sheetInner");
+  bindEmpty(s);
+  $("#reloadBtn", s).onclick = () => { closeSheet(); loadCalendar(); };
+  const gb = $("#gBtn", s); if (gb) gb.onclick = () => googleRefresh(true);
+  $("#copyIcs", s).onclick = () => copyText(CONFIG.ICS_URL);
+  $("#clearIcs", s).onclick = () => { store.del("ics"); closeSheet(); loadCalendar(); };
+}
+
+/* ---------- Beispieldaten (nur Vorschau, klar gekennzeichnet) ---------- */
+function demoICS() {
+  const p = n => String(n).padStart(2, "0");
+  const at = (dayOffset, h, m) => { const w = wallParts(Date.now() + dayOffset * 864e5); return `${w.y}${p(w.m)}${p(w.d)}T${p(h)}${p(m)}00`; };
+  const nextDow = dow => { const w = new Date(Date.now()).getUTCDay(); return (dow - w + 7) % 7 || 7; };
+  const ev = (uid, s, e, sum, loc, desc, extra = "") => `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART;TZID=Europe/Berlin:${s}\r\nDTEND;TZID=Europe/Berlin:${e}\r\nSUMMARY:${sum}\r\nLOCATION:${loc}\r\nDESCRIPTION:${desc}\r\n${extra}END:VEVENT\r\n`;
+  const tu = nextDow(2) - 7, th = nextDow(4) - 7, we = nextDow(3) - 7;
+  return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Demo//DE\r\n" +
+    ev("demo-tr", at(tu, 19, 0), at(tu, 20, 45), "Training Mixed", "Beispiel-Sportplatz\\, München", "Beispiel: Kontakttraining + Lineouts. Neue willkommen!", "RRULE:FREQ=WEEKLY;BYDAY=TU,TH\r\n") +
+    ev("demo-fl", at(we, 19, 0), at(we, 20, 30), "Training FLINTA*", "Beispiel-Sportplatz\\, München", "Beispiel: Basics\\, Passen\\, Tackle-Technik.", "RRULE:FREQ=WEEKLY;BYDAY=WE\r\n") +
+    ev("demo-liga", at(nextDow(6) + 7, 14, 0), at(nextDow(6) + 7, 16, 0), "Ligaspiel Mixed: Munich Monks vs. Beispiel RFC", "Beispiel-Stadion\\, München", "Treffpunkt 12:30. Bitte Mouthguard nicht vergessen.") +
+    ev("demo-cup", at(nextDow(6) + 21, 9, 0), at(nextDow(6) + 21, 18, 0), "IGR Beispiel-Turnier (Mixed + FLINTA*)", "Beispielstadt", "Beispiel-Turnier – kein echter Termin.") +
+    ev("demo-soc", at(nextDow(5), 20, 0), at(nextDow(5), 23, 30), "Monks Social: Stammtisch", "Beispiel-Bar\\, München", "Einfach vorbeikommen – auch ohne Rugby-Erfahrung!") +
+    "END:VCALENDAR\r\n";
+}
+
+
+/* ======================================================================
+   GOOGLE KALENDER (Schnappschuss + Live für Personen mit Zugriff)
+   ====================================================================== */
+function gEventsToEvents(list) {
+  const out = [];
+  for (const g of list) {
+    // akzeptiert kompakte Schnappschuss-Einträge {t,s,e,l,d,x} und rohe Google-Events
+    const title = (g.t ?? g.summary ?? "Termin").trim();
+    const s = g.s ?? (g.start && (g.start.dateTime || g.start.date));
+    const e = g.e ?? (g.end && (g.end.dateTime || g.end.date));
+    if (!s) continue;
+    const allDay = /^\d{4}-\d{2}-\d{2}$/.test(s);
+    const toT = v => allDay ? zonedToUtc({ y: +v.slice(0, 4), m: +v.slice(5, 7), d: +v.slice(8, 10) }, TZ) : Date.parse(v);
+    const start = toT(s), end = e ? toT(e) : start + (allDay ? 864e5 : 0);
+    const raw = { summary: title, description: g.d ?? g.description ?? "", location: g.l ?? g.location ?? "", uid: g.id || title + s,
+      status: g.x || g.status === "cancelled" ? "CANCELLED" : "", dtstart: { allDay } };
+    out.push(makeEvent(raw, start, Math.max(0, end - start)));
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+function useSnapshot() {
+  Cal.events = gEventsToEvents(SNAPSHOT.events); Cal.source = "snapshot"; Cal.at = Date.parse(SNAPSHOT.stand) || null; renderTermine();
+}
+async function getMcp() { try { return window.claude && window.claude.use ? await window.claude.use("mcp") : null; } catch (e) { return null; } }
+async function googleRefresh(interactive) {
+  const mcp = await getMcp();
+  if (!mcp) { if (interactive) showGoogleMsg("Die Google-Verbindung ist in dieser Ansicht nicht verfügbar. Öffne die App auf claude.ai, dann klappt's."); return false; }
+  if (interactive) showGoogleMsg("Lade aus Google Kalender …");
+  const w = wallParts(Date.now()), p2 = n => String(n).padStart(2, "0");
+  const end = wallParts(Date.now() + CONFIG.HORIZON_DAYS * 864e5);
+  const base = { calendarId: CONFIG.GOOGLE_CALENDAR_ID, startTime: `${w.y}-${p2(w.m)}-${p2(w.d)}T00:00:00`, endTime: `${end.y}-${p2(end.m)}-${p2(end.d)}T00:00:00`, orderBy: "startTime", pageSize: 250 };
+  try {
+    let all = [], token = null, storedAt = null;
+    for (let i = 0; i < 5; i++) {
+      const res = await mcp.callTool(CONFIG.GOOGLE_CONNECTOR, "list_events", token ? { ...base, pageToken: token } : base,
+        interactive ? { cache: { refresh: true, staleTime: 6e5, gcTime: 6048e5 } } : { cache: { staleTime: 6e5, gcTime: 6048e5 } });
+      let p = res.payload; if (typeof p === "string") { try { p = JSON.parse(p); } catch (e) { p = {}; } }
+      all = all.concat((p && p.events) || []);
+      if (res.cache && !storedAt) storedAt = res.cache.storedAt;
+      token = p && p.nextPageToken; if (!token) break;
+    }
+    store.set("gcal_ok", 1);
+    Cal.events = gEventsToEvents(all); Cal.source = "google"; Cal.at = storedAt || Date.now();
+    closeSheet(); renderTermine(); if (interactive) toast(`${Cal.events.length} Termine geladen ✓`);
+    return true;
+  } catch (err) {
+    const c = err && err.code, S = CONFIG.GOOGLE_CONNECTOR;
+    const msg = {
+      server_not_connected: `${S} ist für dich nicht verbunden. Füge ihn auf claude.ai unter Einstellungen → Connectors hinzu.`,
+      selection_required: `Du hast mehrere ${S}-Verbindungen – bitte in claude.ai eine auswählen.`,
+      needs_reauth: `${S} muss neu verbunden werden (claude.ai → Einstellungen → Connectors).`,
+      approval_required: "Der Zugriff wurde nicht erlaubt. Tippe nochmal und bestätige die Anfrage.",
+      not_in_manifest: "Der Zugriff auf Google Kalender ist für diese Seite ausgeschaltet.",
+      blocked_by_policy: "Google Kalender ist für dein Konto gesperrt.",
+      tool_error: "Der Kalender „TeamPlus - Munich Monks“ ist für dich nicht abrufbar – nur wer ihn in Google abonniert hat, kann live laden.",
+      server_unavailable: "Google Kalender antwortet gerade nicht. Versuch's gleich nochmal.",
+    }[c] || "Das hat nicht geklappt. Versuch's später nochmal.";
+    if (["server_not_connected", "needs_reauth", "not_in_manifest", "blocked_by_policy", "tool_error"].includes(c)) store.del("gcal_ok");
+    if (interactive) showGoogleMsg(msg, true);
+    return false;
+  }
+}
+function showGoogleMsg(t, isErr) { const el = $("#gMsg"); if (el) { el.hidden = false; el.textContent = t; el.style.color = isErr ? "#ff8a80" : "var(--mut)"; } else if (isErr) toast(t); }
+
+/* ======================================================================
+   TAB: TEAM & ANSPRECHPERSONEN
+   ====================================================================== */
+const JERSEY_D = "M-6,-14 Q0,-9 6,-14 L15,-9 L13,-1 L9,-2 L9,19 L-9,19 L-9,-2 L-13,-1 L-15,-9 Z";
+function jerseyInner(label, fs = 10) {
+  return `<g clip-path="url(#jc)"><rect x="-16" y="-16" width="32" height="15" fill="#ffcc00"/><rect x="-16" y="-1" width="32" height="5" fill="#fff"/><rect x="-16" y="4" width="32" height="16" fill="#000"/></g>
+    <path d="${JERSEY_D}" fill="none" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/>
+    <text x="0" y="${12.6 + (fs - 10) * 0.3}" text-anchor="middle" font-family="Barlow Condensed,system-ui" font-weight="800" font-size="${fs}" fill="#fff">${esc(label)}</text>`;
+}
+const initials = (name, rolle) => {
+  if (name && name.trim()) return name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  return (rolle.replace(/[^A-Za-zÄÖÜäöü ]/g, " ").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("") || "?").toUpperCase();
+};
+function avatar(p, size = 64) {
+  const f = (p.name && FOTOS[p.name]) || p.foto;
+  if (f) return `<img class="ava" src="${esc(f)}" alt="Foto von ${esc(p.name)}" style="width:${size}px;height:${size}px">`;
+  return `<svg class="ava" viewBox="-19 -18 38 40" style="width:${size}px;height:${size}px" aria-hidden="true">${jerseyInner(initials(p.name, p.rolle), 9.5)}</svg>`;
+}
+const TEAM_GROUPS = { alle: "Alle", vorstand: "Vorstand", coaching: "Coaching", orga: "Social Media" };
+const Team = { filter: "alle", editor: null, edit: false };
+function contactBtns(p) {
+  const b = [];
+  if (p.email) b.push(`<a class="btn sm" href="mailto:${esc(p.email)}">✉️ ${esc(p.email)}</a>`);
+  if (p.whatsapp) b.push(`<a class="btn sm" href="https://wa.me/${esc(String(p.whatsapp).replace(/\D/g, ""))}" target="_blank" rel="noopener">💬 WhatsApp</a>`);
+  if (p.instagram) b.push(`<a class="btn sm" href="https://instagram.com/${esc(p.instagram.replace(/^@/, ""))}" target="_blank" rel="noopener">📸 @${esc(p.instagram.replace(/^@/, ""))}</a>`);
+  return b.length ? `<div class="btnrow">${b.join("")}</div>` : `<div class="nocontact">Kontakt folgt – frag einfach beim Training 🙂</div>`;
+}
+function avaBlock(p, size) {
+  const i = TEAM.indexOf(p);
+  return `<div class="avawrap">${avatar(p, size)}${Team.edit && p.name ? `<button class="photobtn" data-photo="${i}" aria-label="Foto für ${esc(p.name)} ändern">📷</button>` : ""}</div>`;
+}
+function personCard(p) {
+  const placeholder = !p.name;
+  return `<article class="person">
+    ${avaBlock(p, 64)}
+    <div class="pinfo">
+      <div class="prole">${esc(p.rolle)}</div>
+      <h3 class="${placeholder ? "ph" : ""}">${esc(p.name || "Name folgt")}${p.pronomen ? ` <span class="pron">${esc(p.pronomen)}</span>` : ""}</h3>
+      <p class="ask"><b>Sprich mich an bei</b> ${esc(p.sprichMichAn)}</p>
+      ${contactBtns(p)}
+    </div></article>`;
+}
+function renderTeam() {
+  const root = $("#tab-team");
+  const conf = TEAM.filter(p => [].concat(p.gruppe).includes("vertrauen"));
+  const gr = p => [].concat(p.gruppe);
+  const rest = TEAM.filter(p => !gr(p).includes("vertrauen") && (Team.filter === "alle" || gr(p).includes(Team.filter)));
+  root.innerHTML = `
+    <div class="hero"><div class="top"><small>Team & Ansprechpersonen</small><h1>Wer ist wer?</h1></div><div class="stripe"></div>
+      <div class="body"><p>Neu hier? Willkommen! Hier findest du alle, die den Laden am Laufen halten. Niemand beißt (außer vielleicht im Scrum).</p></div></div>
+    ${conf.map(p => `<section class="confidant">
+      <div class="conf-head">${avaBlock(p, 72)}<div><div class="prole">💛 ${esc(p.rolle)}</div>
+        <h3 class="${p.name ? "" : "ph"}">${esc(p.name || "Name folgt")}${p.pronomen ? ` <span class="pron">${esc(p.pronomen)}</span>` : ""}</h3></div></div>
+      <p>Dir ist etwas passiert, das sich nicht okay anfühlt – auf dem Platz, in der Kabine, im Gruppenchat oder beim Social? Diskriminierung, Grenzüberschreitungen, Stress im Team oder du willst einfach mal reden?</p>
+      <p><b>Ich höre zu – vertraulich, ohne Urteil und in deinem Tempo.</b> Du entscheidest, was danach passiert.</p>
+      ${contactBtns(p)}
+    </section>`).join("")}
+    ${Team.editor ? `<div class="editbar"><span>${Team.edit ? "Tippe auf 📷 bei einer Person" : "Du kannst Fotos für alle hinzufügen."}</span><button class="btn sm ${Team.edit ? "primary" : ""}" id="editPhotos">${Team.edit ? "✓ Fertig" : "📷 Fotos bearbeiten"}</button></div>` : ""}
+    <div class="chips" style="margin-top:6px">${Object.entries(TEAM_GROUPS).map(([k, v]) => `<button class="chip" data-tg="${k}" aria-pressed="${Team.filter === k}">${v}</button>`).join("")}</div>
+    <div class="people">${rest.map(personCard).join("")}</div>
+    <div class="clubbox">
+      <h3>Folg uns!</h3>
+      <p>Matchday-Fotos, Trainings-Chaos und IGR-Abenteuer gibt's auf Instagram.</p>
+      <a class="btn primary" href="https://instagram.com/${esc(CONFIG.INSTAGRAM)}" target="_blank" rel="noopener">📸 @${esc(CONFIG.INSTAGRAM)}</a>
+    </div>
+`;
+  $$("[data-tg]", root).forEach(b => b.onclick = () => { Team.filter = b.dataset.tg; renderTeam(); });
+  const ep = $("#editPhotos", root); if (ep) ep.onclick = () => { Team.edit = !Team.edit; renderTeam(); };
+  $$("[data-photo]", root).forEach(b => b.onclick = () => openPhotoSheet(TEAM[+b.dataset.photo]));
+}
+
+/* ---------- Fotos hinzufügen (speichert eine neue Version der App für alle) ---------- */
+const MARK_S = "/*FOTOS_" + "START*/", MARK_E = "/*FOTOS_" + "END*/";
+/* Cloudflare: Fotos liegen im KV-Speicher (functions/api/photos). Bearbeiten über ?admin in der URL. */
+const PHOTO_API = "/api/photos";
+(async () => {
+  try {
+    const r = await fetch(PHOTO_API, { cache: "no-store" });
+    if (r.ok) { const remote = await r.json(); for (const [k, v] of Object.entries(remote)) { if (v) FOTOS[k] = v; else delete FOTOS[k]; } }
+  } catch (e) {}
+  if (new URLSearchParams(location.search).has("admin") || store.get("admin_token")) Team.editor = true;
+  if (!$("#tab-team").hidden) renderTeam();
+})();
+async function ownSource() {
+  for (const u of ["index.html", location.pathname]) {
+    try { const r = await fetch(u, { cache: "no-store" }); if (r.ok) { const t = await r.text(); if (/^\s*<!DOCTYPE html>/i.test(t) && t.includes(MARK_S)) return t; } } catch (e) {}
+  }
+  return BOOT_HTML;
+}
+function openPhotoSheet(p) {
+  const cur = FOTOS[p.name] || "";
+  openSheet(`<h2 style="font-size:26px;margin:4px 40px 4px 0">Foto für ${esc(p.name)}</h2>
+    <p class="mut">Das Foto wird verkleinert gespeichert – alle, die die App öffnen, sehen es.</p>
+    <div class="photoprev"><canvas id="phCan" width="256" height="256"></canvas>${cur ? "" : '<div id="phEmpty">Noch kein Foto</div>'}</div>
+    <div class="btnrow" style="justify-content:center;margin:12px 0">
+      <label class="btn">${ICON.upload}Foto wählen<input type="file" id="phFile" accept="image/*" class="sr"></label>
+    </div>
+    <div id="phPos" hidden><label class="mut" for="phRange">Ausschnitt verschieben</label><input type="range" id="phRange" min="0" max="100" value="35" style="width:100%"></div>
+    <div class="btnrow" style="margin-top:10px">
+      <button class="btn primary" id="phSave" disabled>Für alle speichern</button>
+      ${cur ? '<button class="btn ghost" id="phDel">Foto entfernen</button>' : ""}
+    </div>
+    <p id="phMsg" class="mut" style="margin-top:10px"></p>`);
+  const can = $("#phCan"), ctx = can.getContext("2d"), S = $("#sheetInner");
+  let img = null;
+  if (cur) { const i = new Image(); i.onload = () => ctx.drawImage(i, 0, 0, 256, 256); i.src = cur; }
+  const draw = () => {
+    if (!img) return;
+    const w = img.naturalWidth, h = img.naturalHeight, side = Math.min(w, h), pos = $("#phRange").value / 100;
+    const sx = w > h ? (w - side) * pos : 0, sy = h > w ? (h - side) * pos : 0;
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 256, 256); ctx.drawImage(img, sx, sy, side, side, 0, 0, 256, 256);
+  };
+  $("#phFile", S).onchange = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const url = URL.createObjectURL(file), i = new Image();
+    i.onload = () => { img = i; const em = $("#phEmpty"); em && em.remove(); $("#phPos").hidden = i.naturalWidth === i.naturalHeight; $("#phRange").value = i.naturalHeight > i.naturalWidth ? 25 : 50; draw(); $("#phSave").disabled = false; };
+    i.onerror = () => { $("#phMsg").textContent = "Dieses Bildformat geht leider nicht – bitte JPG oder PNG nehmen."; };
+    i.src = url;
+  };
+  $("#phRange", S).oninput = draw;
+  $("#phSave", S).onclick = () => savePhoto(p.name, can.toDataURL("image/jpeg", 0.82));
+  const del = $("#phDel", S); if (del) del.onclick = () => savePhoto(p.name, null);
+}
+async function savePhoto(name, dataUrl) {
+  const msg = $("#phMsg"), btns = $$("#sheetInner .btn");
+  let token = store.get("admin_token");
+  if (!token) { token = prompt("Admin-Passwort zum Speichern der Fotos:"); if (!token) return; }
+  btns.forEach(b => b.disabled = true);
+  msg.textContent = "Speichere …";
+  try {
+    const r = await fetch(PHOTO_API + "/" + encodeURIComponent(name), {
+      method: dataUrl ? "PUT" : "DELETE",
+      headers: { "Content-Type": "text/plain", "X-Admin-Token": token },
+      body: dataUrl || undefined,
+    });
+    if (r.status === 401) { store.del("admin_token"); throw { code: "auth" }; }
+    if (!r.ok) throw { code: "http", status: r.status };
+    store.set("admin_token", token);
+    if (dataUrl) FOTOS[name] = dataUrl; else delete FOTOS[name];
+    msg.textContent = "Gespeichert ✓";
+    setTimeout(() => { closeSheet(); renderTeam(); }, 500);
+  } catch (err) {
+    msg.textContent = err && err.code === "auth" ? "Falsches Passwort." : "Speichern hat nicht geklappt. Versuch's gleich nochmal.";
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+/* ======================================================================
+   TAB: POSITIONEN
+   ====================================================================== */
+const POS_GROUPS = {
+  alle: { label: "Alle 15", nums: [], text: "Tippe auf eine Rückennummer, um mehr über die Position zu erfahren. Angriffsrichtung ist nach oben ↑" },
+  fwd: { label: "Forwards", nums: [1, 2, 3, 4, 5, 6, 7, 8], text: "<b>Forwards (Stürmer*innen) · 1–8</b> – gewinnen den Ball: im Scrum, im Lineout, im Ruck und im Maul. Viel Kontakt, viel Teamwork." },
+  backs: { label: "Backs", nums: [9, 10, 11, 12, 13, 14, 15], text: "<b>Backs (Hintermannschaft) · 9–15</b> – machen aus dem Ball Raumgewinn und Punkte: passen, laufen, kicken." },
+  front: { label: "Front Row", nums: [1, 2, 3], text: "<b>Front Row (Erste Reihe) · 1–3</b> – das Fundament im Gedränge. Kraft, Technik und ganz viel Vertrauen zueinander." },
+  second: { label: "Second Row", nums: [4, 5], text: "<b>Second Row (Zweite Reihe) · 4–5</b> – der Motor im Scrum und die Luftwaffe im Lineout." },
+  backrow: { label: "Back Row", nums: [6, 7, 8], text: "<b>Back Row (Dritte Reihe) · 6–8</b> – die Allrounder*innen: tackeln, tragen, Bälle klauen." },
+  half: { label: "Halfbacks", nums: [9, 10], text: "<b>Halfbacks (Halbspieler*innen) · 9–10</b> – das Gehirn des Teams. Hier wird entschieden, wohin der Ball geht." },
+  centre: { label: "Centres", nums: [12, 13], text: "<b>Centres (Innendreiviertel) · 12–13</b> – Durchbrüche durch die Mitte und harte Tackles." },
+  three: { label: "Back Three", nums: [11, 14, 15], text: "<b>Back Three (Hinterleute) · 11, 14, 15</b> – Tempo, hohe Bälle fangen, Tries legen und die letzte Verteidigungslinie." },
+};
+const GROUP_OF = n => n <= 3 ? "front" : n <= 5 ? "second" : n <= 8 ? "backrow" : n <= 10 ? "half" : (n === 12 || n === 13) ? "centre" : "three";
+const POSITIONS = {
+  1: { en: "Loosehead Prop", de: "Linker Pfeiler", aufgaben: ["Gedränge stabil halten und Druck machen", "Kurze, harte Läufe mit Ball (Carries)", "Rucks sichern und viel tackeln"],
+    scrum: "Links in der ersten Reihe. Der Kopf ist außen, nur eine Schulter am Gegenüber – daher „loose head“. Bindet mit dem rechten Arm am Hooker.", lineout: "Meist vorderer Lifter: hebt den Jumper an Oberschenkeln/Shorts hoch.",
+    skills: ["Kraft", "Rumpfstabilität", "Kontakt-Ausdauer", "Scrum-Technik"], passt: "du gern schiebst, hebst und Kontakt magst – und es dir nichts ausmacht, dass deine Arbeit oft unsichtbar ist. Das Team weiß genau, was es an dir hat." },
+  2: { en: "Hooker", de: "Hakler*in", aufgaben: ["Wirft beim Lineout ein – einer der wichtigsten Würfe im Spiel", "Hakt im Gedränge den Ball mit dem Fuß nach hinten", "Viel Arbeit am Breakdown, tackeln, tragen"],
+    scrum: "In der Mitte der ersten Reihe, bindet über die Schultern beider Props und hakt den eingeworfenen Ball nach hinten.", lineout: "Wirft den Ball ein – und muss alle Calls im Kopf haben.",
+    skills: ["Präziser Wurf", "Kommunikation", "Kraft + Beweglichkeit", "Übersicht"], passt: "du Verantwortung magst, gern mitten im Geschehen bist und Lust hast, an deinem Wurf zu feilen." },
+  3: { en: "Tighthead Prop", de: "Rechter Pfeiler", aufgaben: ["Anker des Gedränges – hier wirkt der meiste Druck", "Tackeln, Carries, Rucks sichern", "Stabilität für das ganze Pack"],
+    scrum: "Rechts in der ersten Reihe. Der Kopf steckt zwischen gegnerischem Hooker und Loosehead – „tight head“. Technisch die anspruchsvollste Scrum-Position.", lineout: "Lifter, meist in der Mitte oder hinten.",
+    skills: ["Maximalkraft", "Nacken- & Rumpfstabilität", "Geduld", "Technik"], passt: "du stabil wie ein Fels sein willst und es feierst, wenn das Gedränge nach vorne rollt." },
+  4: { en: "Lock", de: "Zweite Reihe (links)", aufgaben: ["Motor des Gedränges", "Haupt-Jumper im Lineout, fängt Kick-offs", "Viel Arbeit in Rucks und Mauls"],
+    scrum: "Hinter der ersten Reihe, Kopf zwischen Prop und Hooker. Schiebt mit voller Kraft.", lineout: "Haupt-Jumper – bei uns oft J1.",
+    skills: ["Sprungkraft", "Fangen in der Luft", "Kraft", "Ausdauer"], passt: "du hoch hinaus willst, Power hast und die Drecksarbeit nicht scheust." },
+  5: { en: "Lock", de: "Zweite Reihe (rechts)", aufgaben: ["Schiebt im Gedränge mit der 4 zusammen", "Jumper im Lineout, oft auch für die Calls zuständig", "Kick-offs fangen, Mauls stark machen"],
+    scrum: "Hinter der ersten Reihe, Kopf zwischen Hooker und Tighthead. Bindet eng mit der 4.", lineout: "Jumper – bei uns oft J2. Häufig sagt die 5 die Calls an.",
+    skills: ["Sprungkraft", "Kommunikation", "Kraft", "Spielverständnis"], passt: "du gern Verantwortung im Sturm übernimmst und in der Luft zu Hause bist." },
+  6: { en: "Blindside Flanker", de: "Flügelstürmer*in (geschlossene Seite)", aufgaben: ["Tackle-Maschine auf der kurzen Seite des Feldes", "Carries und Rucks klären", "Zusätzliche Lineout-Option"],
+    scrum: "Außen an der zweiten Reihe angebunden, schiebt mit und löst sich schnell zum Verteidigen.", lineout: "Jumper oder Lifter – flexibel einsetzbar.",
+    skills: ["Tackling", "Ausdauer", "Physis", "Spielverständnis"], passt: "du gern tackelst, schnell wieder aufstehst und überall mit anpackst." },
+  7: { en: "Openside Flanker", de: "Flügelstürmer*in (offene Seite)", aufgaben: ["Als erste*r am Ball nach jedem Tackle", "Ball am Boden stehlen („Jackal“)", "Druck auf die gegnerischen Halbspieler*innen"],
+    scrum: "Außen angebunden, löst sich als erste*r und jagt die gegnerische 9 oder 10.", lineout: "Oft Lifter hinten oder Absicherung.",
+    skills: ["Schnelligkeit", "Ausdauer", "Ballgefühl am Boden", "Mut"], passt: "du nie stehenbleibst, gern Bälle klaust und immer da bist, wo's brennt." },
+  8: { en: "Number Eight", de: "Nummer Acht", aufgaben: ["Verbindung zwischen Forwards und Backs", "Starke Läufe direkt aus dem Gedränge", "Übersicht im Sturm"],
+    scrum: "Ganz hinten zwischen den Locks. Kontrolliert den Ball an den Füßen und kann ihn selbst aufnehmen.", lineout: "Jumper oder Lifter hinten.",
+    skills: ["Kraft + Tempo", "Ballhandling", "Entscheidungsfreude"], passt: "du Forward-Power mit Ballgefühl verbinden willst und gern Entscheidungen triffst." },
+  9: { en: "Scrum-half", de: "Gedrängehalb", aufgaben: ["Holt den Ball aus jedem Ruck, Maul und Gedränge und verteilt ihn", "Dirigiert die Forwards", "Viele Pässe, ab und zu ein Box-Kick"],
+    scrum: "Wirft den Ball ins Gedränge ein und nimmt ihn hinten wieder auf.", lineout: "Steht hinter der Gasse und nimmt den Ball vom Jumper an.",
+    skills: ["Schneller Pass", "Laufbereitschaft", "Laute Stimme", "Spielübersicht"], passt: "du flink bist, viel redest und gern zwischen den Großen den Ton angibst." },
+  10: { en: "Fly-half", de: "Verbindungshalb", aufgaben: ["Spielmacher*in: passen, laufen oder kicken?", "Oft Kicker*in für Penalties und Conversions", "Organisiert die Backline"],
+    scrum: "Steht hinten bereit und startet den Angriff der Backs.", lineout: "Startpunkt der Backline-Spielzüge nach dem Lineout.",
+    skills: ["Übersicht", "Passen", "Kicken", "Ruhe unter Druck"], passt: "du gern Spiele liest, Verantwortung übernimmst und ein Gefühl für Raum hast." },
+  11: { en: "Left Wing", de: "Außendreiviertel links (Flügel)", aufgaben: ["Tries legen!", "Tempo auf der Außenbahn", "Hohe Bälle fangen und den Außenraum verteidigen"],
+    scrum: "Nicht im Gedränge – steht weit außen in der Backline.", lineout: "Weit außen oder als Überraschungsläufer*in.",
+    skills: ["Schnelligkeit", "Fangen", "1-gegen-1", "Mut im Tackle"], passt: "du schnell bist und es liebst, über die Linie zu fliegen." },
+  12: { en: "Inside Centre", de: "Innendreiviertel (innen)", aufgaben: ["Zweite*r Spielmacher*in neben der 10", "Harte Läufe durch die Mitte", "Starke Verteidigung"],
+    scrum: "Nicht im Gedränge – greift mit der Backline an oder verteidigt.", lineout: "Läuft die geplanten Backline-Moves.",
+    skills: ["Passen & Kicken", "Kraft im Kontakt", "Tackling"], passt: "du zwischen Power und Spielwitz pendelst." },
+  13: { en: "Outside Centre", de: "Innendreiviertel (außen)", aufgaben: ["Durchbrüche mit Tempo", "Bälle an die Flügel weitergeben", "Verteidigen mit viel Raum um dich"],
+    scrum: "Nicht im Gedränge – Teil der Backline.", lineout: "Teil der Backline-Moves, oft als Durchbruchsläufer*in.",
+    skills: ["Tempo", "Täuschungen (Side-Step)", "Lesen der Verteidigung", "Tackling im offenen Feld"], passt: "du schnell bist, Lücken siehst und keine Angst vor offenem Raum hast." },
+  14: { en: "Right Wing", de: "Außendreiviertel rechts (Flügel)", aufgaben: ["Tries legen!", "Tempo auf der rechten Außenbahn", "Hohe Bälle fangen, den Außenraum verteidigen"],
+    scrum: "Nicht im Gedränge – steht weit außen in der Backline.", lineout: "Weit außen oder als Überraschungsläufer*in.",
+    skills: ["Schnelligkeit", "Fangen", "1-gegen-1", "Mut im Tackle"], passt: "du schnell bist und Lust auf Meter an der Seitenlinie hast." },
+  15: { en: "Fullback", de: "Schlussspieler*in", aufgaben: ["Letzte Verteidigungslinie", "Hohe Kicks fangen, zurückkicken oder kontern", "Schaltet sich als Extra-Person in den Angriff ein"],
+    scrum: "Nicht im Gedränge – steht ganz hinten.", lineout: "Steht tief und sichert nach hinten ab.",
+    skills: ["Sicheres Fangen", "Kicken", "Übersicht", "Tackling im 1-gegen-1"], passt: "du Ruhe bewahrst, gern hohe Bälle fängst und den Überblick von hinten liebst." },
+};
+const FIELD_POS = { 1: [144, 200], 2: [180, 196], 3: [216, 200], 4: [162, 240], 5: [198, 240], 6: [120, 250], 7: [240, 250], 8: [180, 278], 9: [100, 286], 10: [116, 342], 12: [184, 364], 13: [252, 384], 11: [44, 372], 14: [316, 402], 15: [180, 428] };
+const Pos = { group: "alle" };
+function fieldSVG() {
+  let lines = "";
+  for (let i = 0; i < 9; i++) lines += `<rect x="10" y="${10 + i * 50}" width="340" height="25" fill="#16391f"/>`;
+  const pl = Object.entries(FIELD_POS).map(([n, [x, y]]) =>
+    `<g class="pl" data-n="${n}" transform="translate(${x} ${y})" tabindex="0" role="button" aria-label="${n} ${POSITIONS[n].en}">
+      <circle r="24" fill="transparent"/><circle class="sel" r="25" fill="none" stroke="#ffcc00" stroke-width="2.5"/>
+      <g transform="scale(1.3)">${jerseyInner(n, n > 9 ? 9.5 : 10.5)}</g></g>`).join("");
+  return `<svg class="field" viewBox="0 0 360 460" role="img" aria-label="Rugby-Spielfeld mit 15 Positionen">
+    <rect x="0" y="0" width="360" height="460" rx="14" fill="#123320"/>${lines}
+    <g stroke="#fff" stroke-opacity=".75" stroke-width="2" fill="none">
+      <rect x="10" y="10" width="340" height="440"/>
+      <line x1="10" y1="40" x2="350" y2="40"/><line x1="10" y1="100" x2="350" y2="100"/>
+      <line x1="10" y1="152" x2="350" y2="152" stroke-dasharray="8 7" stroke-opacity=".5"/>
+    </g>
+    <g stroke="#fff" stroke-opacity=".3" stroke-width="1.5" stroke-dasharray="6 8"><line x1="30" y1="10" x2="30" y2="450"/><line x1="330" y1="10" x2="330" y2="450"/></g>
+    <g fill="none" stroke="#fff" stroke-width="3" stroke-opacity=".8"><path d="M170 40 V12 M190 40 V12 M170 26 H190"/></g>
+    <g font-family="Barlow Condensed,system-ui" font-weight="700" font-size="11" fill="#fff" fill-opacity=".6">
+      <text x="36" y="34">TRY-LINE</text><text x="36" y="94">22 m</text><text x="36" y="146">10 m</text>
+    </g>
+    <g fill="#ffcc00"><path d="M318 50 l-8 14 h5 v24 h6 v-24 h5z"/></g>
+    <text x="314" y="98" text-anchor="middle" font-family="Barlow Condensed,system-ui" font-weight="700" font-size="11" fill="#ffcc00">ANGRIFF</text>
+    <ellipse cx="180" cy="238" rx="94" ry="60" fill="#ffcc00" fill-opacity=".05" stroke="#ffcc00" stroke-opacity=".35" stroke-dasharray="4 5"/>
+    <text x="268" y="186" font-family="Barlow Condensed,system-ui" font-weight="700" font-size="11" fill="#ffcc00" fill-opacity=".8">SCRUM</text>
+    ${pl}</svg>`;
+}
+function scrumSVG() {
+  const P = { 1: [140, 112], 2: [170, 109], 3: [200, 112], 4: [155, 145], 5: [185, 145], 6: [117, 152], 7: [223, 152], 8: [170, 180], 9: [96, 98] };
+  const bind = [[2, 1], [2, 3], [4, 5], [4, 1], [5, 3], [6, 4], [7, 5], [8, 4], [8, 5]];
+  const line = ([a, b]) => `<line x1="${P[a][0]}" y1="${P[a][1]}" x2="${P[b][0]}" y2="${P[b][1]}"/>`;
+  return `<svg class="scrum" viewBox="60 24 220 176" role="img" aria-label="Scrum-Bindung von oben">
+    <rect x="60" y="24" width="220" height="176" fill="#123320"/>
+    <g id="oppRow" class="opp">${[[140, "3"], [170, "2"], [200, "1"]].map(([x, n]) => `<circle cx="${x}" cy="0" r="14"/><text x="${x}" y="4">${n}</text>`).join("")}</g>
+    <g id="extBind" stroke="#ffcc00" stroke-width="3" stroke-linecap="round" opacity="0"><line x1="140" y1="112" x2="196" y2="0" id="b1"/><line x1="200" y1="112" x2="144" y2="0" id="b3"/></g>
+    <g stroke="#ffcc00" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 6" opacity=".9">${bind.map(line).join("")}</g>
+    ${Object.entries(P).map(([n, [x, y]]) => `<g class="sp" data-n="${n}" transform="translate(${x} ${y})"><circle r="${n == 9 ? 12 : 14}" fill="${n == 9 ? "#000" : "#ffcc00"}" stroke="${n == 9 ? "#fff" : "#000"}" stroke-width="2"/><text y="5" fill="${n == 9 ? "#fff" : "#000"}">${n}</text></g>`).join("")}
+    <g id="sball" transform="translate(112 100)"><ellipse rx="7" ry="4.5" fill="#fff" stroke="#000" stroke-width="1.2"/></g>
+  </svg>`;
+}
+const SCRUM_PHASES = [
+  { k: "crouch", label: "1 · Crouch", oy: 46, ext: 0, cap: "Crouch: Beide Packs gehen tief in die Hocke.", text: "<b>Crouch</b> (Hocke): Alle binden innerhalb des eigenen Packs. Die erste Reihe geht tief, Rücken gerade, Kopf hoch." },
+  { k: "bind", label: "2 · Bind", oy: 74, ext: 1, cap: "Bind: Die Props greifen ans Trikot der Gegenüber.", text: "<b>Bind</b> (Binden): Die Props greifen mit dem äußeren Arm ans Trikot der gegnerischen Props. Noch kein Druck!" },
+  { k: "set", label: "3 · Set", oy: 88, ext: 1, cap: "Set: Zusammen! 9 rollt den Ball ein, 2 hakt ihn nach hinten.", text: "<b>Set</b>: Die Packs gehen zusammen. 9 rollt den Ball in den Tunnel, die 2 hakt ihn nach hinten zur 8." },
+];
+const Scrum = { phase: 0, raf: null };
+function setScrumPhase(i, animate = true) {
+  Scrum.phase = i; const ph = SCRUM_PHASES[i];
+  $$(".scrumbtn").forEach((b, j) => b.setAttribute("aria-pressed", j === i));
+  $("#scrumText").innerHTML = ph.text;
+  const opp = $("#oppRow"), ext = $("#extBind"), ball = $("#sball");
+  cancelAnimationFrame(Scrum.raf);
+  const from = +(opp.dataset.oy || 46), t0 = performance.now(), D = animate ? 600 : 0;
+  const frame = now => {
+    const t = D ? Math.min(1, (now - t0) / D) : 1, e = ease(t), oy = from + (ph.oy - from) * e;
+    opp.setAttribute("transform", `translate(0 ${oy})`); opp.dataset.oy = oy;
+    ext.setAttribute("opacity", ph.ext ? e * (ph.ext) + (1 - e) * (+ext.dataset.o || 0) : (1 - e) * (+ext.dataset.o || 0));
+    $("#b1").setAttribute("y2", oy); $("#b3").setAttribute("y2", oy);
+    if (t < 1) Scrum.raf = requestAnimationFrame(frame); else { ext.dataset.o = ph.ext; if (ph.k === "set") rollBall(); else ball.setAttribute("transform", "translate(112 100)"); }
+  };
+  Scrum.raf = requestAnimationFrame(frame);
+}
+function rollBall() {
+  const ball = $("#sball"), pts = [[112, 100], [170, 99], [170, 128], [170, 196]], t0 = performance.now(), D = 2000;
+  const f = now => {
+    const t = Math.min(1, (now - t0) / D), seg = Math.min(2, Math.floor(t * 3)), lt = t * 3 - seg, a = pts[seg], b = pts[seg + 1];
+    ball.setAttribute("transform", `translate(${a[0] + (b[0] - a[0]) * ease(lt)} ${a[1] + (b[1] - a[1]) * ease(lt)})`);
+    if (t < 1 && Scrum.phase === 2) Scrum.raf = requestAnimationFrame(f);
+  };
+  setTimeout(() => { Scrum.raf = requestAnimationFrame(f); }, 300);
+}
+function renderPositionen() {
+  const root = $("#tab-positionen");
+  root.innerHTML = `
+    <div class="hero"><div class="top"><small>Positionen · 15er-Rugby</small><h1>Wo spiele ich?</h1></div><div class="stripe"></div>
+      <div class="body"><p>Im 15er-Rugby gibt's für jede Statur und jedes Talent eine Position. Tippe auf eine Nummer!</p></div></div>
+    <div class="chips">${Object.entries(POS_GROUPS).map(([k, g]) => `<button class="chip" data-pg="${k}" aria-pressed="${Pos.group === k}">${g.label}</button>`).join("")}</div>
+    <div class="grpinfo" id="grpInfo"></div>
+    <div class="fieldwrap">${fieldSVG()}</div>
+    <div class="card">
+      <h2 class="cardh">So bindet das Gedränge</h2>
+      <p class="mut">Das <b>Scrum</b> (Gedränge) von oben: Unsere 8 Forwards gegen die 8 der Gegner*innen. Gestrichelte Linien = wer an wem festhält (bindet).</p>
+      ${scrumSVG()}
+      <div class="seg">${SCRUM_PHASES.map((p, i) => `<button class="scrumbtn" data-sp="${i}">${p.label}</button>`).join("")}</div>
+      <p id="scrumText" class="scrumtext"></p>
+      <ul class="mini">
+        <li><b>Erste Reihe (1–3):</b> 2 bindet über die Schultern von 1 und 3.</li>
+        <li><b>Zweite Reihe (4–5):</b> binden aneinander, Kopf in die Lücke zwischen Prop und Hooker.</li>
+        <li><b>Flanker (6, 7):</b> binden außen an der zweiten Reihe.</li>
+        <li><b>Nummer 8:</b> ganz hinten zwischen den Locks – kontrolliert den Ball an den Füßen.</li>
+      </ul>
+    </div>`;
+  $$("[data-pg]", root).forEach(b => b.onclick = () => { Pos.group = b.dataset.pg; applyPosGroup(); });
+  $$(".pl", root).forEach(g => { g.onclick = () => openPosition(+g.dataset.n); g.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPosition(+g.dataset.n); } }; });
+  $$(".sp", root).forEach(g => g.onclick = () => openPosition(+g.dataset.n));
+  $$("[data-sp]", root).forEach(b => b.onclick = () => setScrumPhase(+b.dataset.sp));
+  applyPosGroup(); setScrumPhase(0, false);
+}
+function applyPosGroup() {
+  const g = POS_GROUPS[Pos.group];
+  $$("[data-pg]").forEach(b => b.setAttribute("aria-pressed", b.dataset.pg === Pos.group));
+  $$(".pl").forEach(el => el.classList.toggle("dim", g.nums.length > 0 && !g.nums.includes(+el.dataset.n)));
+  $("#grpInfo").innerHTML = g.text;
+}
+function openPosition(n) {
+  const p = POSITIONS[n], grp = GROUP_OF(n), fwd = n <= 8;
+  $$(".pl").forEach(el => el.classList.toggle("active", +el.dataset.n === n));
+  openSheet(`<div class="poshead">
+      <svg viewBox="-19 -18 38 40" class="posj" aria-hidden="true">${jerseyInner(n, n > 9 ? 10 : 11)}</svg>
+      <div><div class="prole">${fwd ? "Forwards" : "Backs"} · ${esc(POS_GROUPS[grp].label)}</div><h2>${esc(p.en)}</h2><div class="de">${esc(p.de)}</div></div></div>
+    <h4>Aufgaben im Spiel</h4><ul class="mini">${p.aufgaben.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+    <div class="twocol"><div class="box"><h4>Im Scrum</h4><p>${esc(p.scrum)}</p></div><div class="box"><h4>Im Lineout</h4><p>${esc(p.lineout)}</p></div></div>
+    <h4>Typische Skills</h4><div class="tags">${p.skills.map(s => `<span class="tag">${esc(s)}</span>`).join("")}</div>
+    <div class="fit"><b>Passt zu dir, wenn …</b> ${esc(p.passt)}</div>
+    <div class="posnav"><button class="btn" data-pn="${n === 1 ? 15 : n - 1}">← ${n === 1 ? 15 : n - 1}</button><button class="btn" data-pn="${n === 15 ? 1 : n + 1}">${n === 15 ? 1 : n + 1} →</button></div>`);
+  $$("[data-pn]", $("#sheetInner")).forEach(b => b.onclick = () => openPosition(+b.dataset.pn));
+}
+document.addEventListener("sheetclosed", () => $$(".pl.active").forEach(el => el.classList.remove("active")));
+
+/* ======================================================================
+   TAB: UNSERE CALLS (Animations-Engine + Quiz)
+   ====================================================================== */
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const SETUPS = {
+  lineout: {
+    ball: "H",
+    ents: {
+      H: { x: 24, y: 140, role: "hooker", label: "H", name: "Hooker" },
+      L1: { x: 96, y: 158, role: "lifter", label: "L1" }, J1: { x: 114, y: 158, role: "jumper", label: "J1" }, L2: { x: 132, y: 158, role: "lifter", label: "L2" },
+      L3: { x: 156, y: 158, role: "lifter", label: "L3" }, J2: { x: 174, y: 158, role: "jumper", label: "J2" }, L4: { x: 192, y: 158, role: "lifter", label: "L4" },
+      SH: { x: 150, y: 196, role: "back", label: "9" }, FH: { x: 232, y: 246, role: "back", label: "10" }, IC: { x: 280, y: 262, role: "back", label: "12" },
+      O1: { x: 96, y: 122, role: "opp" }, O2: { x: 114, y: 122, role: "opp" }, O3: { x: 132, y: 122, role: "opp" }, O4: { x: 156, y: 122, role: "opp" }, O5: { x: 174, y: 122, role: "opp" }, O6: { x: 192, y: 122, role: "opp" },
+    },
+    field: () => `<rect width="360" height="290" rx="14" fill="#123320"/>
+      <rect x="0" y="0" width="40" height="290" fill="#0c1f14"/>
+      <text x="24" y="272" text-anchor="middle" class="flab">AUS</text>
+      <line x1="40" y1="0" x2="40" y2="290" stroke="#fff" stroke-width="2.5" stroke-opacity=".85"/>
+      <line x1="90" y1="0" x2="90" y2="290" stroke="#fff" stroke-opacity=".35" stroke-dasharray="6 7"/>
+      <line x1="200" y1="0" x2="200" y2="290" stroke="#fff" stroke-opacity=".35" stroke-dasharray="6 7"/>
+      <text x="90" y="274" text-anchor="middle" class="flab">5 m</text><text x="200" y="274" text-anchor="middle" class="flab">15 m</text>
+      <line x1="40" y1="140" x2="212" y2="140" stroke="#ffcc00" stroke-opacity=".45" stroke-dasharray="3 5"/>
+      <text x="214" y="143" class="flab" fill="#ffcc00">Line of touch</text>
+      <path d="M280 168 l-8 14 h5 v22 h6 v-22 h5z" fill="#ffcc00"/><text x="280" y="220" text-anchor="middle" class="flab" fill="#ffcc00">ANGRIFF</text>
+      <text x="214" y="118" class="flab" fill-opacity=".5">↑ Gegner*innen</text>`,
+  },
+};
+function buildStates(call) {
+  const S = SETUPS[call.setup];
+  let s = { ents: {}, holder: S.ball, maul: null, support: [], lauf: [] };
+  for (const [id, e] of Object.entries(S.ents)) s.ents[id] = { ...e, lift: 0 };
+  const states = [s];
+  for (const st of call.schritte) {
+    const n = { ents: {}, holder: s.holder, maul: s.maul, support: s.support, lauf: s.lauf };
+    for (const [id, e] of Object.entries(s.ents)) n.ents[id] = { ...e };
+    for (const [id, xy] of Object.entries(st.move || {})) if (n.ents[id]) { n.ents[id].x = xy[0]; n.ents[id].y = xy[1]; }
+    for (const [id, v] of Object.entries(st.lift || {})) if (n.ents[id]) n.ents[id].lift = v;
+    if (st.maul !== undefined) n.maul = st.maul;
+    if (st.support !== undefined) n.support = st.support;
+    if (st.lauf !== undefined) n.lauf = st.lauf;
+    if (st.ball) n.holder = st.ball.to;
+    states.push(n); s = n;
+  }
+  return states;
+}
+class CallAnim {
+  constructor(svgEl, call, { onStep, hideText } = {}) {
+    this.svg = svgEl; this.call = call; this.onStep = onStep || (() => {}); this.hideText = hideText;
+    this.states = buildStates(call); this.k = 0; this.playing = false; this.raf = null; this.token = 0;
+    this.build(); this.draw(0, 1);
+  }
+  build() {
+    const S = SETUPS[this.call.setup];
+    let html = S.field() + `<g class="runs"></g><g class="trails"></g><rect class="maul" rx="14" fill="#ffcc00" fill-opacity=".14" stroke="#ffcc00" stroke-dasharray="5 4" opacity="0"/><text class="maultx flab" fill="#ffcc00" opacity="0">MAUL</text>`;
+    for (const [id, e] of Object.entries(this.states[0].ents)) {
+      const st = { jumper: ["#ffcc00", "#000", "#000"], lifter: ["#fff", "#000", "#000"], hooker: ["#000", "#ffcc00", "#ffcc00"], back: ["#000", "#fff", "#fff"], opp: ["#6b6b6b", "#3a3a3a", "#fff"] }[e.role];
+      html += `<g class="ent ${e.role}" data-id="${id}"><ellipse class="sh" rx="11" ry="7" fill="#000" opacity="0"/><circle class="supring" r="14" fill="none" stroke="#ffcc00" stroke-width="1.8" stroke-dasharray="3 3" opacity="0"/>
+        <circle r="${e.role === "opp" ? 8 : 9.5}" fill="${st[0]}" stroke="${st[1]}" stroke-width="${e.role === "hooker" ? 3 : 2}" ${e.role === "opp" ? 'opacity=".55"' : ""}/>
+        ${e.label ? `<text y="4" text-anchor="middle" fill="${st[2]}">${e.label}</text>` : ""}</g>`;
+    }
+    html += `<g class="ballg"><ellipse class="bsh" rx="6" ry="3" fill="#000" opacity=".35"/><g class="ball"><ellipse rx="7" ry="4.6" fill="#fff" stroke="#000" stroke-width="1.3"/><path d="M-2 -1.5h4M-2 1.5h4" stroke="#000" stroke-width=".9"/></g></g>`;
+    this.svg.innerHTML = html;
+    this.el = {}; $$(".ent", this.svg).forEach(g => this.el[g.dataset.id] = g);
+  }
+  holderPos(state, id) { const e = state.ents[id]; return e ? [e.x + 7, e.y - 6 - 10 * e.lift] : [0, 0]; }
+  // zeichnet den Übergang von Schritt k-1 nach k bei Fortschritt t (0..1)
+  draw(k, t) {
+    const A = this.states[Math.max(0, k - 1)], B = this.states[k], e = ease(t), step = this.call.schritte[k - 1];
+    for (const [id, g] of Object.entries(this.el)) {
+      const a = A.ents[id], b = B.ents[id];
+      const x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e, lift = a.lift + (b.lift - a.lift) * e;
+      g.setAttribute("transform", `translate(${x} ${y - 10 * lift})`);
+      const c = g.querySelector("circle"); c.setAttribute("transform", `scale(${1 + .3 * lift})`);
+      const sh = g.querySelector(".sh"); sh.setAttribute("cy", 10 * lift + 4); sh.setAttribute("opacity", .45 * lift);
+      g.classList.toggle("lifted", lift > .5);
+      const inA = A.support.includes(id), inB = B.support.includes(id);
+      g.querySelector(".supring").setAttribute("opacity", inB ? (inA ? 1 : e) : (inA ? 1 - e : 0));
+    }
+    // Ball
+    let bx, by, h = 0;
+    const cur = { ents: {} };
+    for (const id in B.ents) { const a = A.ents[id], b = B.ents[id]; cur.ents[id] = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, lift: a.lift + (b.lift - a.lift) * e }; }
+    if (step && step.ball && k > 0) {
+      const p0 = this.holderPos(A, A.holder), p1 = this.holderPos(B, step.ball.to);
+      const tt = t; bx = p0[0] + (p1[0] - p0[0]) * tt; by = p0[1] + (p1[1] - p0[1]) * tt; h = (step.ball.arc || 0) * Math.sin(Math.PI * tt);
+    } else { [bx, by] = this.holderPos(cur, B.holder); }
+    const bg = this.svg.querySelector(".ballg");
+    bg.querySelector(".bsh").setAttribute("transform", `translate(${bx} ${by + 6})`);
+    bg.querySelector(".ball").setAttribute("transform", `translate(${bx} ${by - h}) scale(${1 + h / 60})`);
+    // Flugbahnen bis inkl. Schritt k
+    let trails = "";
+    for (let i = 1; i <= k; i++) {
+      const s = this.call.schritte[i - 1]; if (!s.ball || !(s.ball.arc > 0)) continue;
+      const p0 = this.holderPos(this.states[i - 1], this.states[i - 1].holder), p1 = this.holderPos(this.states[i], s.ball.to);
+      const mx = (p0[0] + p1[0]) / 2, my = (p0[1] + p1[1]) / 2 - 2 * s.ball.arc;
+      const frac = i === k ? t : 1;
+      trails += `<path d="M${p0[0]} ${p0[1]} Q${mx} ${my} ${p1[0]} ${p1[1]}" pathLength="1" stroke-dasharray="${frac} 1" fill="none" stroke="#ffcc00" stroke-width="2" stroke-opacity="${i === k ? .9 : .35}" stroke-linecap="round"/>`;
+    }
+    this.svg.querySelector(".trails").innerHTML = trails;
+    // Laufwege (Support-Läufe + Ballträger*in)
+    let runs = "";
+    for (const id of new Set([...B.support, ...B.lauf])) {
+      let j0 = k; while (j0 > 1 && (this.states[j0 - 1].support.includes(id) || this.states[j0 - 1].lauf.includes(id))) j0--;
+      const pts = []; for (let j = j0 - 1; j < k; j++) pts.push(this.states[j].ents[id]); pts.push(cur.ents[id]);
+      const sup = B.support.includes(id);
+      runs += `<polyline points="${pts.map(p => p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ")}" fill="none" stroke="${sup ? "#ffcc00" : "#fff"}" stroke-width="2" stroke-dasharray="4 4" stroke-opacity="${sup ? .7 : .5}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    this.svg.querySelector(".runs").innerHTML = runs;
+    // Maul
+    const maul = B.maul, mr = this.svg.querySelector(".maul"), mt = this.svg.querySelector(".maultx");
+    if (maul && maul.length) {
+      const xs = maul.map(id => cur.ents[id].x), ys = maul.map(id => cur.ents[id].y);
+      const x0 = Math.min(...xs) - 15, y0 = Math.min(...ys) - 15, x1 = Math.max(...xs) + 15, y1 = Math.max(...ys) + 15;
+      mr.setAttribute("x", x0); mr.setAttribute("y", y0); mr.setAttribute("width", x1 - x0); mr.setAttribute("height", y1 - y0);
+      const op = A.maul ? 1 : e; mr.setAttribute("opacity", op); mt.setAttribute("opacity", op); mt.setAttribute("x", x1 + 6); mt.setAttribute("y", (y0 + y1) / 2 + 4);
+    } else { mr.setAttribute("opacity", 0); mt.setAttribute("opacity", 0); }
+  }
+  animateStep(k) {
+    const tok = this.token, D = (this.call.schritte[k - 1].dauer || 1000) / (this.speed || 1);
+    return new Promise(res => {
+      const t0 = performance.now();
+      const f = now => {
+        if (tok !== this.token) return res(false);
+        const t = Math.min(1, (now - t0) / D); this.draw(k, t);
+        if (t < 1) this.raf = requestAnimationFrame(f); else { this.k = k; this.onStep(k); res(true); }
+      };
+      this.onStep(k, true);
+      this.raf = requestAnimationFrame(f);
+    });
+  }
+  stop() { this.token++; cancelAnimationFrame(this.raf); this.playing = false; this.onStep(this.k); }
+  reset() { this.stop(); this.k = 0; this.draw(0, 1); this.onStep(0); }
+  async play(fromStart) {
+    this.token++; cancelAnimationFrame(this.raf);
+    if (fromStart || this.k >= this.call.schritte.length) { this.k = 0; this.draw(0, 1); }
+    this.playing = true; const tok = this.token;
+    while (this.k < this.call.schritte.length && tok === this.token) {
+      const ok = await this.animateStep(this.k + 1); if (!ok) return;
+      await new Promise(r => setTimeout(r, 260));
+    }
+    if (tok === this.token) { this.playing = false; this.onStep(this.k); }
+  }
+  async next() { if (this.k >= this.call.schritte.length) return; this.token++; this.playing = false; await this.animateStep(this.k + 1); }
+  prev() { this.stop(); this.k = Math.max(0, this.k - 1); this.draw(this.k, 1); this.onStep(this.k); }
+}
+
+const CallsUI = { mode: "lernen", cat: null, id: null, anim: null, quiz: { score: 0, total: 0, streak: 0, cur: null, answered: false } };
+const PLAY_I = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>';
+const PAUSE_I = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
+const REPLAY_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5"/></svg>';
+const legend = `<div class="legend"><span><i class="lg j"></i>Jumper</span><span><i class="lg l"></i>Lifter</span><span><i class="lg h"></i>Hooker</span><span><i class="lg b"></i>Backs</span><span><i class="lg o"></i>Gegner*innen</span><span><i class="lg s"></i>Support-Lauf</span></div>`;
+function renderCalls() {
+  const root = $("#tab-calls");
+  const cats = [...new Set(CALLS.map(c => c.kategorie))];
+  if (!CallsUI.cat) CallsUI.cat = cats[0];
+  root.innerHTML = `
+    <div class="hero"><div class="top"><small>Unsere Calls</small><h1>Spielzüge</h1></div><div class="stripe"></div>
+      <div class="body"><p>Unsere eigenen Calls zum Anschauen und Lernen. Erst verstehen, dann im Quiz testen 🏉</p></div></div>
+    <div class="seg big"><button data-mode="lernen" aria-pressed="${CallsUI.mode === "lernen"}">📖 Lernen</button><button data-mode="quiz" aria-pressed="${CallsUI.mode === "quiz"}">🎯 Quiz</button></div>
+    <div id="callsBody"></div>`;
+  $$("[data-mode]", root).forEach(b => b.onclick = () => { CallsUI.mode = b.dataset.mode; CallsUI.anim && CallsUI.anim.stop(); renderCalls(); });
+  CallsUI.mode === "lernen" ? renderLearn(cats) : renderQuiz();
+}
+function renderLearn(cats) {
+  const body = $("#callsBody");
+  const list = CALLS.filter(c => c.kategorie === CallsUI.cat);
+  if (!list.find(c => c.id === CallsUI.id)) CallsUI.id = list[0] && list[0].id;
+  const c = CALLS.find(x => x.id === CallsUI.id);
+  body.innerHTML = `
+    ${cats.length > 1 ? `<div class="chips">${cats.map(k => `<button class="chip" data-cat="${esc(k)}" aria-pressed="${k === CallsUI.cat}">${esc(k)}</button>`).join("")}</div>` : ""}
+    <details class="basics"><summary>🤓 ${esc(CallsUI.cat)}-Basics für Neue</summary>
+      <p><b>Lineout</b> (Gasse): Spielfortsetzung, wenn der Ball im Aus war. Beide Teams stellen sich in zwei Reihen auf, der <b>Hooker</b> wirft den Ball gerade dazwischen.</p>
+      <p><b>Jumper</b> springen hoch und fangen. <b>Lifter</b> heben sie an – vorne und hinten – und setzen sie sicher wieder ab.</p>
+      <p>Ein <b>Pod</b> ist so ein Dreier-Team aus Front-Lifter, Jumper und Back-Lifter. Wir haben zwei: Pod 1 (L1, J1, L2) vorne und Pod 2 (L3, J2, L4) dahinter.</p>
+      <p>Mit dem <b>Call</b> sagen wir an, wohin der Ball fliegt und was danach passiert – die Gegner*innen sollen's natürlich nicht wissen.</p>
+    </details>
+    <div class="callpick">${list.map(x => `<button data-call="${x.id}" aria-pressed="${x.id === CallsUI.id}"><b>${esc(x.name)}</b><span>${esc(x.kurz)}</span></button>`).join("")}</div>
+    ${c ? `<div class="card callcard">
+      <div class="callhead"><div class="callname">${esc(c.name)}</div><div class="mut">${esc(c.kurz)}</div></div>
+      <svg class="anim" viewBox="8 58 296 222" id="animSvg" role="img" aria-label="Animation des Calls ${esc(c.name)}"></svg>
+      ${legend}
+      <div class="caption" id="cap"></div>
+      <div class="ctrls">
+        <button class="cbtn" id="cPrev" aria-label="Schritt zurück">◀</button>
+        <button class="cbtn main" id="cPlay" aria-label="Abspielen">${PLAY_I}</button>
+        <button class="cbtn" id="cNext" aria-label="Nächster Schritt">▶</button>
+        <button class="cbtn" id="cReplay" aria-label="Von vorn">${REPLAY_I}</button>
+      </div>
+      <div class="dots" id="dots">${c.schritte.map((_, i) => `<i data-d="${i + 1}"></i>`).join("")}</div>
+      <p class="expl">${esc(c.erklaerung)}</p>
+      <h4>Wer macht was?</h4>
+      <div class="who">${c.wer.map(([r, t]) => `<div><b>${esc(r)}</b><span>${esc(t)}</span></div>`).join("")}</div>
+      <h4>Darauf achten</h4><ul class="mini check">${c.achtung.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+    </div>` : ""}`;
+  $$("[data-cat]", body).forEach(b => b.onclick = () => { CallsUI.cat = b.dataset.cat; CallsUI.id = null; renderCalls(); });
+  $$("[data-call]", body).forEach(b => b.onclick = () => { CallsUI.id = b.dataset.call; CallsUI.anim && CallsUI.anim.stop(); renderLearn(cats); setTimeout(() => CallsUI.anim.play(true), 150); });
+  if (!c) return;
+  const cap = $("#cap"), dots = $$("#dots i");
+  const anim = CallsUI.anim = new CallAnim($("#animSvg"), c, {
+    onStep: (k, running) => {
+      cap.innerHTML = k === 0 ? `<span class="sn">Start</span>Aufstellung: Hooker an der Seitenlinie, unser Lineout gegenüber den Gegner*innen.` : `<span class="sn">${k}/${c.schritte.length}</span>${esc(c.schritte[k - 1].text)}`;
+      dots.forEach((d, i) => { d.classList.toggle("on", i < k); d.classList.toggle("cur", i === k - 1); });
+      $("#cPlay").innerHTML = anim && anim.playing ? PAUSE_I : PLAY_I;
+    }
+  });
+  anim.onStep(0);
+  $("#cPlay").onclick = () => anim.playing ? anim.stop() : anim.play(false);
+  $("#cReplay").onclick = () => anim.play(true);
+  $("#cNext").onclick = () => anim.next();
+  $("#cPrev").onclick = () => anim.prev();
+  dots.forEach(d => d.onclick = () => { anim.stop(); anim.k = +d.dataset.d; anim.draw(anim.k, 1); anim.onStep(anim.k); });
+}
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function renderQuiz() {
+  const body = $("#callsBody"), Q = CallsUI.quiz;
+  const pool = CALLS;
+  if (!Q.cur || Q.answered) { let p; do { p = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && Q.cur && p.id === Q.cur.id); Q.cur = p; Q.answered = false; }
+  const c = Q.cur;
+  const opts = shuffle(CALLS.filter(x => x.kategorie === c.kategorie));
+  body.innerHTML = `
+    <div class="quizbar"><span>Punkte <b>${Q.score}/${Q.total}</b></span><span>Serie <b>${Q.streak}${Q.streak >= 3 ? " 🔥" : ""}</b></span></div>
+    <div class="card callcard">
+      <div class="callhead"><div class="callname">Welcher Call ist das?</div><div class="mut">Schau genau hin, wohin der Ball fliegt – und was danach passiert.</div></div>
+      <svg class="anim" viewBox="8 58 296 222" id="animSvg" role="img" aria-label="Quiz-Animation"></svg>
+      ${legend}
+      <div class="ctrls"><button class="cbtn main" id="cReplay" aria-label="Nochmal ansehen">${REPLAY_I}</button></div>
+      <div class="answers">${opts.map(o => `<button class="ans" data-ans="${o.id}">${esc(o.name)}</button>`).join("")}</div>
+      <div id="qfb" class="qfb" hidden></div>
+    </div>`;
+  const anim = CallsUI.anim = new CallAnim($("#animSvg"), c, { hideText: true });
+  anim.speed = 1;
+  setTimeout(() => anim.play(true), 350);
+  $("#cReplay").onclick = () => anim.play(true);
+  $$("[data-ans]", body).forEach(b => b.onclick = () => {
+    if (Q.answered) return; Q.answered = true; Q.total++;
+    const ok = b.dataset.ans === c.id;
+    if (ok) { Q.score++; Q.streak++; } else Q.streak = 0;
+    $$("[data-ans]", body).forEach(x => { x.disabled = true; if (x.dataset.ans === c.id) x.classList.add("right"); });
+    if (!ok) b.classList.add("wrong");
+    const fb = $("#qfb"); fb.hidden = false;
+    fb.innerHTML = `<p><b>${ok ? ["Stark! 💪", "Sitzt! 🎯", "Genau so! 🏉"][Q.total % 3] : "Knapp daneben – das war " + esc(c.name) + "."}</b> ${esc(c.kurz)}.</p>
+      <div class="btnrow"><button class="btn primary" id="qNext">Nächste Frage →</button><button class="btn" id="qLearn">Call ansehen</button></div>`;
+    $(".quizbar b").textContent = `${Q.score}/${Q.total}`;
+    $$(".quizbar b")[1].textContent = Q.streak + (Q.streak >= 3 ? " 🔥" : "");
+    $("#qNext").onclick = () => { anim.stop(); renderQuiz(); };
+    $("#qLearn").onclick = () => { anim.stop(); CallsUI.mode = "lernen"; CallsUI.cat = c.kategorie; CallsUI.id = c.id; renderCalls(); };
+  });
+}
+onShow.calls = () => { if (!$("#callsBody")) renderCalls(); };
+onShow.positionen = () => { if (!$("#field") && !$(".field")) renderPositionen(); };
+onShow.team = () => { if (!$(".people")) renderTeam(); };
+
+/* ======================================================================
+   START
+   ====================================================================== */
+showTab(location.hash.slice(1) || "termine");
+loadCalendar();
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {});
+</script>
+</body>
+</html>
