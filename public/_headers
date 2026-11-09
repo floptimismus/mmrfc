@@ -13,3 +13,12 @@
 
 /icons/*
   Cache-Control: public, max-age=604800
+
+/konto.js
+  Cache-Control: no-cache
+
+/ergebnisse.js
+  Cache-Control: no-cache
+
+/extra.css
+  Cache-Control: no-cache

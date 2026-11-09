@@ -8,5 +8,12 @@
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
-  }
+  },
+  // Datenbank für Konten, Profile und Ergebnisse (wird beim Deploy automatisch angelegt)
+  "durable_objects": {
+    "bindings": [{ "name": "DB", "class_name": "MonksDB" }]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MonksDB"] }
+  ]
 }

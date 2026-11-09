@@ -1,0 +1,78 @@
+/* ======================================================================
+   Zusatz-Styles: Konto, Mitglieder, Ergebnisse
+   ====================================================================== */
+:root { --win:#34c759; --draw:#a1a1a1; --loss:#ff6b5b; }
+[data-theme=light] { --win:#1f8f3c; --draw:#6b6b6b; --loss:#d33a2c; }
+
+.tabbar nav { grid-template-columns:repeat(5,1fr); }
+.tab { font-size:11px; }
+
+/* Konto-Knopf in der Kopfzeile */
+.acctbtn { font-family:var(--head); font-weight:800; font-size:15px; letter-spacing:.02em; color:var(--tx); }
+.acctbtn.in { background:var(--y); color:#000; border-color:var(--y); }
+
+/* Formulare */
+.form label { display:block; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:14px 0 6px; }
+.form label:first-child { margin-top:2px; }
+.inp { width:100%; min-height:46px; border-radius:14px; border:1px solid var(--line); background:var(--s2); color:var(--tx); padding:0 14px; font:inherit; font-size:16px; }
+textarea.inp { min-height:80px; padding:10px 14px; resize:vertical; }
+.inp:focus { outline:2px solid var(--y); outline-offset:1px; }
+.hint { font-size:12.5px; color:var(--mut); margin:6px 0 0; }
+.err { color:var(--loss); font-size:14px; margin:10px 0 0; min-height:1em; }
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+/* Positions-Auswahl */
+.poschips { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px; }
+.poschip { display:flex; align-items:center; gap:8px; min-height:42px; border-radius:12px; border:1px solid var(--line); background:var(--s2); padding:4px 10px 4px 4px; font-size:13.5px; font-weight:600; text-align:left; color:var(--tx); }
+.poschip b { flex:none; width:30px; height:30px; border-radius:9px; display:grid; place-items:center; background:var(--s3); font-family:var(--head); font-size:17px; }
+.poschip[aria-pressed=true] { border-color:var(--y); background:color-mix(in srgb,var(--y) 16%,var(--s2)); }
+.poschip[aria-pressed=true] b { background:var(--y); color:#000; }
+
+/* Mitglieder */
+.member { display:flex; gap:14px; align-items:flex-start; background:var(--s1); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-bottom:10px; }
+.member .pinfo { flex:1; min-width:0; }
+.member h3 { font-size:21px; margin:0; line-height:1.1; overflow-wrap:anywhere; }
+.member .uname { font-size:13px; color:var(--mut); margin:2px 0 8px; }
+.ptags { display:flex; flex-wrap:wrap; gap:5px; }
+.ptag { display:inline-flex; align-items:center; gap:5px; border-radius:999px; background:var(--s2); border:1px solid var(--line); padding:3px 10px 3px 3px; font-size:12.5px; font-weight:600; }
+.ptag b { width:22px; height:22px; border-radius:50%; background:var(--y); color:#000; display:grid; place-items:center; font-family:var(--head); font-size:13px; }
+.badge { display:inline-block; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; border-radius:6px; padding:2px 7px; background:var(--s3); color:var(--tx); vertical-align:middle; margin-left:6px; }
+.badge.y { background:var(--y); color:#000; }
+.membertools { display:flex; gap:8px; align-items:center; margin:6px 0 12px; }
+.membertools .inp { flex:1; }
+.membertools select.inp { flex:0 0 132px; }
+.codebox { font-family:var(--head); font-size:46px; font-weight:800; letter-spacing:.18em; text-align:center; background:var(--s2); border-radius:18px; padding:14px 0; margin:12px 0; }
+
+/* Ergebnisse */
+.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; }
+.stat { background:var(--s1); border:1px solid var(--line); border-radius:16px; padding:10px 6px; text-align:center; }
+.stat b { display:block; font-family:var(--head); font-size:30px; font-weight:800; line-height:1; }
+.stat span { font-size:11.5px; color:var(--mut); font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+.stat.w b { color:var(--win); } .stat.d b { color:var(--draw); } .stat.l b { color:var(--loss); }
+.md { background:var(--s1); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; margin-bottom:12px; }
+.md .mdhead { display:flex; gap:10px; align-items:flex-start; }
+.md .mdhead > div { flex:1; min-width:0; }
+.md .kind { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--mut); }
+.md h3 { font-size:22px; line-height:1.1; margin:2px 0 3px; overflow-wrap:anywhere; }
+.md .meta { font-size:13.5px; color:var(--mut); }
+.md .place { display:inline-block; margin-top:6px; background:var(--y); color:#000; font-weight:800; font-size:13px; border-radius:8px; padding:2px 9px; }
+.md .notes { font-size:14px; color:var(--mut); margin:10px 0 0; white-space:pre-line; }
+.games { margin-top:10px; border-top:1px solid var(--line); }
+.game { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+.game:last-child { border-bottom:0; }
+.game .opp { flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere; }
+.game .opp small { display:block; font-weight:400; font-size:12.5px; color:var(--mut); }
+.game .score { font-family:var(--head); font-size:24px; font-weight:800; white-space:nowrap; }
+.wdl { flex:none; width:28px; height:28px; border-radius:8px; display:grid; place-items:center; font-weight:800; font-size:13px; color:#000; }
+.wdl.w { background:var(--win); } .wdl.d { background:var(--draw); } .wdl.l { background:var(--loss); } .wdl.o { background:var(--s3); color:var(--mut); }
+.record { font-size:13px; font-weight:700; color:var(--mut); margin-top:4px; }
+.gamerow { display:grid; grid-template-columns:1fr 62px 62px 40px; gap:6px; align-items:center; margin-bottom:6px; }
+.gamerow .inp { padding:0 10px; }
+.gamerow .inp.num { text-align:center; padding:0 4px; }
+.gamerow .x { height:46px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--mut); font-size:18px; }
+.gamehead { display:grid; grid-template-columns:1fr 62px 62px 40px; gap:6px; font-size:11.5px; font-weight:700; color:var(--mut); text-transform:uppercase; margin-bottom:4px; }
+.gamehead span:nth-child(2), .gamehead span:nth-child(3) { text-align:center; }
+@media (max-width:380px) { .stats { grid-template-columns:repeat(2,1fr); } .row2 { grid-template-columns:1fr; } }
+
+/* Kopfzeile: Untertitel einzeilig, seit der Konto-Knopf dazukam */
+.brand span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

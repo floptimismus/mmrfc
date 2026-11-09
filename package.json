@@ -1,0 +1,14 @@
+{
+  "name": "mmrfc",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Munich Monks RFC Web-App (Cloudflare Worker)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^13.3.3"
+  }
+}
