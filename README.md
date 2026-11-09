@@ -12,8 +12,14 @@ public/                 ← die eigentliche Webseite
   icons/
 functions/api/
   ics.js                ← /api/ics: lädt den SpielerPlus-Kalender live
-  photos/               ← /api/photos: Team-Fotos speichern (Cloudflare KV)
+  photos/               ← /api/photos: Team-Fotos speichern (Cloudflare KV, nur bei Pages)
+src/worker.js           ← Einstieg, wenn die App als Cloudflare **Worker** läuft (leitet /api/ics weiter)
+wrangler.jsonc          ← Worker-Konfiguration – "name" muss wie der Worker im Dashboard heißen
 ```
+
+> **Läuft als Worker (workers.dev):** Cloudflare liest `wrangler.jsonc` und baut bei jedem Commit automatisch neu.
+> Live-Termine funktionieren, Fotos speichern ist im Worker noch nicht eingerichtet.
+> Die Anleitung unten zu „Pages“ und „KV“ ist dann nicht nötig.
 
 ## Mit Cloudflare verbinden (einmalig, ca. 10 Minuten)
 
