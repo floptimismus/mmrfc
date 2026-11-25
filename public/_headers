@@ -14,10 +14,7 @@
 /icons/*
   Cache-Control: public, max-age=604800
 
-/konto.js
-  Cache-Control: no-cache
-
-/ergebnisse.js
+/js/*
   Cache-Control: no-cache
 
 /extra.css

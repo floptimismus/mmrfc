@@ -79,3 +79,49 @@ textarea.inp { min-height:80px; padding:10px 14px; resize:vertical; }
 
 /* Versionsanzeige unten auf jeder Seite */
 .appver { text-align:center; font-size:12px; color:var(--mut); margin:28px 0 8px; opacity:.7; }
+
+/* ======================================================================
+   Version 4
+   ====================================================================== */
+.tab span { display:block; line-height:1.1; }
+.sectionh { font-size:28px; margin:26px 0 6px; }
+.bsec { scroll-margin-top:92px; }
+.jumpbar { position:sticky; top:76px; z-index:5; display:flex; gap:6px; overflow-x:auto; padding:8px 2px; margin:0 -2px 4px; scrollbar-width:none; background:linear-gradient(var(--bg) 70%, transparent); }
+.jumpbar::-webkit-scrollbar { display:none; }
+.jumpbar .chip { text-decoration:none; color:var(--tx); }
+.steps { margin:8px 0 4px; padding-left:20px; font-size:14.5px; color:var(--mut); }
+.steps li { margin:4px 0; }
+.okline { color:var(--win); font-weight:600; font-size:14.5px; margin:4px 0 6px; }
+.byline { font-size:12.5px; color:var(--mut); margin:10px 0 0; }
+
+/* kleine Segment-Schalter */
+.seg.sm { margin:6px 0; padding:3px; border-radius:12px; }
+.seg.sm button { min-height:34px; font-size:13px; padding:0 6px; }
+.langseg { margin:4px 0 14px; }
+
+/* Team-Zuordnung bei Terminen */
+.assign { margin:10px 0 4px; }
+.assignlab { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); }
+.assignlab small { text-transform:none; letter-spacing:0; font-weight:500; }
+
+/* Ergebnis-Eingabe */
+.gamebox { border:1px solid var(--line); border-radius:16px; padding:10px; margin-bottom:8px; background:var(--s1); }
+.gametop { display:flex; gap:6px; }
+.gametop .inp { flex:1; }
+.gametop .x { flex:none; width:46px; height:46px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--mut); font-size:18px; }
+.scorerow { display:flex; align-items:flex-end; gap:8px; margin-top:4px; }
+.scorerow label { flex:1; margin:0 !important; }
+.scorerow .inp { margin-top:4px; text-align:center; }
+.scorerow > span { font-family:var(--head); font-size:26px; font-weight:800; padding-bottom:6px; }
+.outseg button.o-w[aria-pressed=true] { background:var(--win); color:#000; }
+.outseg button.o-d[aria-pressed=true] { background:var(--draw); color:#000; }
+.outseg button.o-l[aria-pressed=true] { background:var(--loss); color:#000; }
+.game .score.word { font-family:inherit; font-size:15px; font-weight:800; }
+.game .score.word.w { color:var(--win); } .game .score.word.d { color:var(--draw); } .game .score.word.l { color:var(--loss); } .game .score.word.o { color:var(--mut); font-weight:600; }
+
+/* Willkommens-Fenster */
+.welcome h2 { font-size:30px; line-height:1.05; margin:4px 40px 8px 0; }
+.perks { list-style:none; padding:0; margin:6px 0 10px; }
+.perks li { display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:15px; border-bottom:1px solid var(--line); }
+.perks li:last-child { border-bottom:0; }
+.perks li span:first-child { flex:none; width:26px; font-size:19px; line-height:1.2; }

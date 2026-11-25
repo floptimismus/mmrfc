@@ -1,55 +1,81 @@
-# Munich Monks RFC – Web-App
+# Munich Monks RFC – Web-App (Version 4)
 
-Termine, Ergebnisse, Team, Positionen, Calls und Mitglieder der Munich Monks RFC, als Cloudflare Worker.
+Termine, Ergebnisse, Team, Basics und Konto der Munich Monks RFC – auf **Deutsch und Englisch**, als Cloudflare Worker.
 Man kann die App auf dem Handy installieren („Zum Home-Bildschirm“), und sie funktioniert auch offline.
 
 ```
-public/                 ← die Webseite
-  index.html            ← App-Grundgerüst + Termine, Team, Positionen, Calls
-                           (Vereinsdaten oben im Block „VEREINSDATEN – HIER BEARBEITEN“)
-  ergebnisse.js         ← Tab „Ergebnisse“
-  konto.js              ← Konto (Passkeys), Profil, Mitgliederliste
-  extra.css             ← Styles für Ergebnisse & Konto
+public/                   ← die Webseite
+  index.html              ← Grundgerüst, Styles, Navigation
+  extra.css               ← zusätzliche Styles
+  js/
+    content.js            ← ✏️ VEREINSDATEN: Team, Positionen, Scrum, Calls (jeweils de + en)
+    i18n.js               ← Sprache (Deutsch / Englisch)
+    core.js               ← Hilfsfunktionen, Navigation, Server-Anbindung
+    ics.js                ← Kalender-Parser (SpielerPlus-ICS)
+    termine.js            ← Tab „Termine“
+    ergebnisse.js         ← Tab „Ergebnisse“
+    team.js               ← Tab „Team“ (Ansprechpersonen + Mitglieder)
+    anim.js               ← Animations-Engine für die Calls
+    basics.js             ← Tab „Basics“ (Positionen, Scrum, Calls, Quiz)
+    konto.js              ← Tab „Konto“ (Passkeys, Profil, Kalender, Willkommens-Fenster)
+    start.js              ← Start der App
   manifest.webmanifest, sw.js, _headers, icons/
 src/
-  worker.js             ← Einstieg: leitet /api/* weiter
-  db.js                 ← Datenbank (Durable Object mit SQLite): Konten, Profile, Ergebnisse
-functions/api/ics.js    ← holt den SpielerPlus-Kalender (/api/ics)
-wrangler.jsonc          ← Worker-Konfiguration – "name" muss wie der Worker im Dashboard heißen
+  worker.js               ← Einstieg: leitet /api/* an die Datenbank
+  db.js                   ← Datenbank (Durable Object mit SQLite)
+wrangler.jsonc            ← Worker-Konfiguration – "name" muss wie der Worker im Dashboard heißen
 ```
 
-Cloudflare baut bei jedem Commit auf `main` automatisch neu. Die Datenbank legt Cloudflare beim ersten Deploy selbst an.
+Cloudflare baut bei jedem Commit auf `main` automatisch neu. Die Datenbank legt Cloudflare selbst an, neue Felder werden beim Start automatisch ergänzt.
 
-## Konten & Mitglieder
+## Die Tabs
 
-- **Anmelden mit Passkey:** Oben rechts auf den Personen-Knopf → Username wählen → „Konto erstellen“.
-  Der Passkey wird per Face ID, Fingerabdruck oder Geräte-PIN gespeichert. Ein Passwort gibt es nicht.
-- **Die erste Person, die sich registriert, wird Admin.** Also direkt nach dem Deploy selbst registrieren!
-- **Profil:** Spitzname, Pronomen und alle Positionen (1–15), die man spielen kann.
-- **Mitgliederliste:** sehen nur angemeldete Mitglieder, mit Suche und Filter nach Position.
-- **Weiteres Gerät** (z. B. Laptop oder neues Handy): Konto → „Weiteres Gerät verbinden“ → 6-stelliger Code.
-  Auf dem neuen Gerät: Konto → „Mit Code verbinden“. Der Code gilt 15 Minuten.
-- **Alle Geräte verloren?** Ein Admin erstellt in der Mitgliederliste (⋯) einen Code für die Person.
-- **Admins** können andere zu Admins machen und Mitglieder entfernen.
+- **Termine** – jede Person sieht ihre **eigenen** Termine aus SpielerPlus. Dafür fügt man im Konto einmal den persönlichen
+  Kalenderlink ein (nur Links von spielerplus.de, `webcal://` wird automatisch umgewandelt). Niemand sonst sieht den Link.
+  Ohne Anmeldung oder Link erscheint nur ein Hinweis.
+  Bei jedem Termin kann man **„Team zuordnen“** (Mixed, FLINTA*, Flying Monks) – das gilt dann für alle.
+  Der Filter „Flying Monks“ zeigt nur zugeordnete Termine; Termine ohne Team erscheinen bei Mixed und FLINTA*.
+- **Ergebnisse** – Spieltag, Turnier oder Freundschaftsspiel mit beliebig vielen Spielen. Pro Spiel: **Spielstand**, **nur Ausgang**
+  (Sieg/Unentschieden/Niederlage) oder **offen**. Lesen: alle. Eintragen & bearbeiten: alle angemeldeten Mitglieder.
+  Löschen: Admins und die Person, die den Eintrag erstellt hat. Bei jedem Eintrag steht, wer ihn zuletzt geändert hat.
+  Teams: Mixed, FLINTA*, Flying Monks (SG mit Vienna Eagles).
+- **Team** – Ansprechpersonen (in `js/content.js` → `TEAM`) und darunter die **Mitgliederliste** mit Spitzname, Pronomen,
+  „dabei seit“ und Positionen (nur für angemeldete Mitglieder sichtbar). Admins verwalten Mitglieder über „⋯“.
+- **Basics** – Positionen, Scrum, Lineout-Calls, Pass-Calls (Feuer, Pod 10, Plus, Minus, Fiji) mit Animationen und Quiz.
+- **Konto** – Anmeldung mit **Passkey** (Face ID, Fingerabdruck, Geräte-PIN), Profil (Spitzname, Pronomen, Dabei seit, Positionen),
+  Sprache, SpielerPlus-Kalender, weiteres Gerät per 6-stelligem Code verbinden.
 
-## Ergebnisse
+**Willkommens-Fenster:** erscheint beim ersten Besuch und danach ohne Konto höchstens einmal pro Woche.
+**Erste Person, die sich registriert, wird Admin.**
 
-- Ein Eintrag ist ein **Spieltag, Turnier oder Freundschaftsspiel** mit **einem oder mehreren Spielen**
-  (Gegner, eigene Punkte, Gegner-Punkte), dazu optional Titel, Ort, Team (Mixed/FLINTA*), Platzierung und Notizen.
-- Datum, Titel und Ort kann man aus einem Termin im Kalender übernehmen.
-- **Lesen kann jede Person, eintragen und bearbeiten nur Admins.**
-- Oben stehen Saison-Bilanz (Siege, Unentschieden, Niederlagen) und Punkte. Die Saison läuft von August bis Juli.
+## Sprache
 
-## Im Alltag
+Beim ersten Öffnen richtet sich die App nach der Handysprache (Deutsch → Deutsch, sonst Englisch).
+Ändern: im Konto (wird gespeichert und gilt auf allen Geräten) oder ohne Konto über den DE | EN-Schalter im Konto-Tab bzw. Willkommens-Fenster.
+Texte, die Personen selbst eintippen (Termin-Titel aus SpielerPlus, Notizen, Spitznamen), werden nicht übersetzt.
 
-- **Inhalte ändern** (Team, Calls, Positionen): auf GitHub `public/index.html` öffnen → ✏️ → ändern → **Commit changes**.
-  Nach etwa einer Minute ist die Webseite automatisch aktuell. Achte beim Ändern auf Anführungszeichen `"` und Kommas `,`.
-- **Anderer Kalender-Link:** im Cloudflare-Dashboard beim Worker unter Settings → Variables and Secrets die Variable `ICS_URL` setzen.
-- **Lokal testen:** `npm install` und danach `npx wrangler dev` → http://localhost:8787
+## Inhalte ändern
+
+Alles Vereinsbezogene steht in **`public/js/content.js`** – jeweils mit `de:` und `en:`:
+- **Team:** `TEAM` – Rolle, Gruppe, Name, Kontakt.
+- **Positionen:** `POSITIONS`, **Scrum:** `SCRUM_PHASES` / `SCRUM_TEXT`.
+- **Calls:** `CALLS` – Bewegungen in `schritte`, Texte in `de.steps` / `en.steps` (gleiche Reihenfolge).
+  Neue Grundaufstellungen stehen in `js/anim.js` → `SETUPS`.
+
+Auf GitHub die Datei öffnen → ✏️ → ändern → **Commit changes**. Nach etwa einer Minute ist die App aktuell.
+Achte auf Anführungszeichen `"` und Kommas `,`.
+
+## Lokal testen
+
+```bash
+npm install
+npx wrangler dev
+```
+
+Für Tests mit einem eigenen Kalender-Server (nicht spielerplus.de) in `.dev.vars` `DEV_ICS_ANY_HOST=1` setzen – **nur lokal**, nie bei Cloudflare.
 
 ## Datenschutz
 
-Die Adresse ist öffentlich. Ohne Anmeldung sieht man Termine, Ergebnisse, Ansprechpersonen, Positionen und Calls.
-Profile und die Mitgliederliste sieht man nur angemeldet. Registrieren kann sich allerdings jede Person, die den Link hat.
-Admins können unbekannte Konten in der Mitgliederliste entfernen.
-Der SpielerPlus-Link enthält einen persönlichen Token und steht im Quelltext.
+Die Adresse ist öffentlich. Ohne Anmeldung sieht man Ergebnisse, Ansprechpersonen und Basics.
+Termine, Profile und die Mitgliederliste sieht man nur angemeldet. Kalenderlinks sind privat und werden nie an andere ausgegeben.
+Registrieren kann sich jede Person mit dem Link; Admins können unbekannte Konten in der Mitgliederliste entfernen.
