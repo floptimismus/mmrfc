@@ -1,6 +1,6 @@
-# Munich Monks RFC – Web-App (Version 4)
+# Munich Monks RFC – Web-App (Version 4.1)
 
-Termine, Ergebnisse, Team, Basics und Konto der Munich Monks RFC – auf **Deutsch und Englisch**, als Cloudflare Worker.
+Termine, Ergebnisse, Team, Basics und Konto der Munich Monks RFC – auf **Deutsch, Englisch, Französisch und Spanisch**, als Cloudflare Worker.
 Man kann die App auf dem Handy installieren („Zum Home-Bildschirm“), und sie funktioniert auch offline.
 
 ```
@@ -9,7 +9,8 @@ public/                   ← die Webseite
   extra.css               ← zusätzliche Styles
   js/
     content.js            ← ✏️ VEREINSDATEN: Team, Positionen, Scrum, Calls (jeweils de + en)
-    i18n.js               ← Sprache (Deutsch / Englisch)
+    i18n.js               ← Sprache (Deutsch / Englisch / Französisch / Spanisch)
+    lang-fr.js, lang-es.js ← Wörterbücher Französisch und Spanisch (Schlüssel = englischer Text)
     core.js               ← Hilfsfunktionen, Navigation, Server-Anbindung
     ics.js                ← Kalender-Parser (SpielerPlus-ICS)
     termine.js            ← Tab „Termine“
@@ -50,9 +51,17 @@ Cloudflare baut bei jedem Commit auf `main` automatisch neu. Die Datenbank legt 
 
 ## Sprache
 
-Beim ersten Öffnen richtet sich die App nach der Handysprache (Deutsch → Deutsch, sonst Englisch).
-Ändern: im Konto (wird gespeichert und gilt auf allen Geräten) oder ohne Konto über den DE | EN-Schalter im Konto-Tab bzw. Willkommens-Fenster.
+Vier Sprachen: Deutsch, Englisch, Französisch, Spanisch.
+Beim ersten Öffnen richtet sich die App nach der Handysprache (de/fr/es werden erkannt, sonst Englisch).
+Ändern: im Konto (wird gespeichert und gilt auf allen Geräten) oder ohne Konto über den DE · EN · FR · ES-Schalter im Konto-Tab bzw. Willkommens-Fenster.
 Texte, die Personen selbst eintippen (Termin-Titel aus SpielerPlus, Notizen, Spitznamen), werden nicht übersetzt.
+
+**So funktioniert die Übersetzung:** Deutsch und Englisch stehen direkt im Code bzw. in `content.js` (`de:` / `en:`).
+Französisch und Spanisch stehen in `js/lang-fr.js` und `js/lang-es.js` – jeweils als Liste „englischer Text → Übersetzung“.
+- **Übersetzung verbessern:** in `lang-fr.js` / `lang-es.js` den Text rechts vom Doppelpunkt ändern.
+- **Neuer oder geänderter englischer Text:** zusätzlich einen Eintrag mit dem neuen englischen Text in beiden Dateien anlegen.
+  Fehlt ein Eintrag, zeigt die App automatisch die englische Fassung – es bricht also nichts.
+- Platzhalter wie `{0}` und HTML wie `<b>…</b>` müssen in der Übersetzung erhalten bleiben.
 
 ## Inhalte ändern
 

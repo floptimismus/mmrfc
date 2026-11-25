@@ -51,6 +51,8 @@ $$(".tab").forEach(b => b.onclick = () => showTab(b.dataset.tab));
 addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 
 /* ---------- Server-Anbindung ---------- */
+// Server-Meldungen kommen auf Deutsch + Englisch; Französisch/Spanisch über das Wörterbuch
+const serverMsg = d => !d ? "" : LANG === "de" ? d.message : d.message_en ? (LANG === "en" ? d.message_en : tr(d.message_en)) : d.message;
 async function api(path, opts = {}) {
   const r = await fetch(path, {
     method: opts.method || "GET", credentials: "same-origin", cache: "no-store",
@@ -58,7 +60,7 @@ async function api(path, opts = {}) {
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   let data = {}; try { data = await r.json(); } catch (e) {}
-  if (!r.ok) throw Object.assign(new Error((LANG === "en" && data.message_en) || data.message || T("Fehler ", "Error ") + r.status), { status: r.status, code: data.error });
+  if (!r.ok) throw Object.assign(new Error(serverMsg(data) || T("Fehler ", "Error ") + r.status), { status: r.status, code: data.error });
   return data;
 }
 

@@ -90,7 +90,7 @@ async function loadCalendar() {
     const r = await fetch("/api/ics", { cache: "no-store", credentials: "same-origin" });
     const text = await r.text();
     if (!r.ok || !text.includes("BEGIN:VCALENDAR")) {
-      let msg = ""; try { const j = JSON.parse(text); msg = (LANG === "en" && j.message_en) || j.message; } catch (e) {}
+      let msg = ""; try { msg = serverMsg(JSON.parse(text)); } catch (e) {}
       throw new Error(msg || T("Kalender konnte nicht geladen werden.", "Couldn't load the calendar."));
     }
     store.set("ics_v4", { uid: u.id, text, at: Date.now() });
@@ -145,7 +145,7 @@ function typeChip(key, label, color) {
 }
 function teamChip(key, label) { return `<button class="chip" data-fteam="${key}" aria-pressed="${Cal.filter.team === key}">${esc(label)}</button>`; }
 function teamTag(e) { return TEAM_NAMES[e.team] ? `<span class="tag">${TEAM_NAMES[e.team]}</span>` : ""; }
-function typeTag(e) { const Ty = TYPES[e.type]; return `<span class="tag" style="--tc:${Ty.color}">${Ty.icon}${esc(e.sub || L(Ty.label))}</span>`; }
+function typeTag(e) { const Ty = TYPES[e.type]; return `<span class="tag" style="--tc:${Ty.color}">${Ty.icon}${esc(L(e.sub) || L(Ty.label))}</span>`; }
 const CANCELLED = () => `<span class="tag cancel">${T("Abgesagt", "Cancelled")}</span>`;
 
 function hintState(kind) {
@@ -213,7 +213,7 @@ function renderTermine() {
       }
       html += eventCard(e);
     }
-    if (hiddenCount) html += `<div style="text-align:center;margin:16px 0"><button class="btn" id="moreBtn">${T(`Weitere ${hiddenCount} Termine anzeigen`, `Show ${hiddenCount} more events`)}</button></div>`;
+    if (hiddenCount) html += `<div style="text-align:center;margin:16px 0"><button class="btn" id="moreBtn">${T(`Weitere ${hiddenCount} Termine anzeigen`, TP("Show {0} more events", hiddenCount))}</button></div>`;
     if (!rest.length) html += `<p class="foot">${T("Danach ist (noch) nichts eingetragen.", "Nothing else planned (yet).")}</p>`;
   }
   html += `<p class="foot">${T("Alle Zeiten in deutscher Zeit (Europe/Berlin).", "All times are German time (Europe/Berlin).")}</p>`;
@@ -275,7 +275,7 @@ function bindEventBody(scope) {
       renderTermine();
       if (inSheet) openEventSheet(e.id);
       else { const d = $(`#tab-termine details[data-id="${CSS.escape(e.id)}"]`); if (d) d.open = true; }
-      toast(team ? T(`Für alle als ${TEAM_NAMES[team]} markiert ✓`, `Marked as ${TEAM_NAMES[team]} for everyone ✓`) : T("Zuordnung entfernt", "Assignment removed"));
+      toast(team ? T(`Für alle als ${TEAM_NAMES[team]} markiert ✓`, TP("Marked as {0} for everyone ✓", TEAM_NAMES[team])) : T("Zuordnung entfernt", "Assignment removed"));
     } catch (err) { toast(err.message); }
   });
 }

@@ -1,7 +1,7 @@
 /* ======================================================================
    TAB: BASICS – Positionen, Scrum, Lineout-Calls, Pass-Calls, Quiz
    ====================================================================== */
-const CT = c => c[LANG] || c.de;            // Call-Texte in der aktuellen Sprache
+const CT = c => L(c);                        // Call-Texte in der aktuellen Sprache (fr/es über Wörterbuch)
 const CN = c => L(c.name);                   // Call-Name (z. B. Feuer / Fire)
 const Basics = { group: "alle", sel: {}, anims: {}, quiz: { cat: "alle", score: 0, total: 0, streak: 0, cur: null, answered: false } };
 const PLAY_I = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>';
@@ -66,11 +66,11 @@ function applyPosGroup() {
   $("#grpInfo").innerHTML = L(g.text);
 }
 function openPosition(n) {
-  const p = POSITIONS[n], tx = p.tx[LANG] || p.tx.de, grp = GROUP_OF(n), fwd = n <= 8;
+  const p = POSITIONS[n], tx = L(p.tx), grp = GROUP_OF(n), fwd = n <= 8;
   $$(".pl").forEach(el => el.classList.toggle("active", +el.dataset.n === n));
   openSheet(`<div class="poshead">
       <svg viewBox="-19 -18 38 40" class="posj" aria-hidden="true">${jerseyInner(n, n > 9 ? 10 : 11)}</svg>
-      <div><div class="prole">${fwd ? "Forwards" : "Backs"} · ${esc(L(POS_GROUPS[grp].label))}</div><h2>${esc(p.en)}</h2>${LANG === "de" ? `<div class="de">${esc(p.de)}</div>` : ""}</div></div>
+      <div><div class="prole">${L(fwd ? "Forwards" : "Backs")} · ${esc(L(POS_GROUPS[grp].label))}</div><h2>${esc(p.en)}</h2>${LANG === "en" ? "" : `<div class="de">${esc(LANG === "de" ? p.de : tr("pos." + n))}</div>`}</div></div>
     <h4>${T("Aufgaben im Spiel", "Jobs in the game")}</h4><ul class="mini">${tx.aufgaben.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
     <div class="twocol"><div class="box"><h4>${T("Im Scrum", "In the scrum")}</h4><p>${esc(tx.scrum)}</p></div><div class="box"><h4>${T("Im Lineout", "In the lineout")}</h4><p>${esc(tx.lineout)}</p></div></div>
     <h4>${T("Typische Skills", "Typical skills")}</h4><div class="tags">${tx.skills.map(s => `<span class="tag">${esc(s)}</span>`).join("")}</div>
@@ -125,7 +125,7 @@ function rollBall() {
 function renderBasics(anchor) {
   const root = $("#tab-basics");
   if (!$("#sec-pos", root)) {
-    const st = SCRUM_TEXT[LANG] || SCRUM_TEXT.de;
+    const st = L(SCRUM_TEXT);
     root.innerHTML = `
       <div class="hero"><div class="top"><small>Basics</small><h1>${T("Rugby verstehen", "Understand rugby")}</h1></div><div class="stripe"></div>
         <div class="body"><p>${T("Positionen, Scrum und unsere eigenen Calls – zum Anschauen, Lernen und im Quiz testen 🏉", "Positions, the scrum and our own calls – to watch, learn and test yourself in the quiz 🏉")}</p></div></div>
@@ -172,7 +172,7 @@ function renderCallSection(cat) {
   if (!list.find(c => c.id === Basics.sel[cat])) Basics.sel[cat] = list[0].id;
   const c = list.find(x => x.id === Basics.sel[cat]), tx = CT(c), S = SETUPS[c.setup];
   box.innerHTML = `
-    <details class="basics"><summary>🤓 ${T(`${L(CALL_CATS[cat].short)}-Basics für Neue`, `${L(CALL_CATS[cat].short)} basics for newcomers`)}</summary>${L(CAT_INTRO[cat])}</details>
+    <details class="basics"><summary>🤓 ${T(`${L(CALL_CATS[cat].short)}-Basics für Neue`, TP("{0} basics for newcomers", L(CALL_CATS[cat].short)))}</summary>${L(CAT_INTRO[cat])}</details>
     <div class="callpick">${list.map(x => `<button data-call="${x.id}" aria-pressed="${x.id === c.id}"><b>${esc(CN(x))}</b><span>${esc(CT(x).kurz)}</span></button>`).join("")}</div>
     <div class="card callcard">
       <div class="callhead"><div class="callname">${esc(CN(c))}</div><div class="mut">${esc(tx.kurz)}</div></div>
@@ -224,8 +224,8 @@ function renderQuiz() {
   const c = Q.cur, S = SETUPS[c.setup];
   const opts = shuffle(CALLS.filter(x => x.kategorie === c.kategorie));
   body.innerHTML = `
-    <div class="chips">${[["alle", T("Alle Calls", "All calls")], ["lineout", "Lineout"], ["pass", T("Pass", "Passing")]].map(([k, v]) => `<button class="chip" data-qcat="${k}" aria-pressed="${Q.cat === k}">${v}</button>`).join("")}</div>
-    <div class="quizbar"><span>${T("Punkte", "Score")} <b data-qs>${Q.score}/${Q.total}</b></span><span>${T("Serie", "Streak")} <b data-qk>${Q.streak}${Q.streak >= 3 ? " 🔥" : ""}</b></span></div>
+    <div class="chips">${[["alle", T("Alle Calls", "All calls")], ["lineout", L("Lineout")], ["pass", T("Pass", "Passing")]].map(([k, v]) => `<button class="chip" data-qcat="${k}" aria-pressed="${Q.cat === k}">${v}</button>`).join("")}</div>
+    <div class="quizbar"><span>${T("Punkte", "Points")} <b data-qs>${Q.score}/${Q.total}</b></span><span>${T("Serie", "Streak")} <b data-qk>${Q.streak}${Q.streak >= 3 ? " 🔥" : ""}</b></span></div>
     <div class="card callcard">
       <div class="callhead"><div class="callname">${T("Welcher Call ist das?", "Which call is this?")}</div><div class="mut">${T("Schau genau hin, wohin der Ball fliegt – und was danach passiert.", "Watch closely where the ball goes – and what happens next.")}</div></div>
       <svg class="anim" viewBox="${S.viewBox}" data-anim role="img" aria-label="${T("Quiz-Animation", "Quiz animation")}"></svg>

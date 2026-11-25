@@ -1,6 +1,6 @@
 // Service Worker: App offline verfügbar machen. Immer zuerst Netz, bei Offline der zuletzt gespeicherte Stand.
-const CACHE = "monks-v4";
-const JS = ["i18n", "content", "core", "ics", "termine", "anim", "konto", "ergebnisse", "team", "basics", "start"].map(n => `/js/${n}.js`);
+const CACHE = "monks-v4-1";
+const JS = ["lang-fr", "lang-es", "i18n", "content", "core", "ics", "termine", "anim", "konto", "ergebnisse", "team", "basics", "start"].map(n => `/js/${n}.js`);
 const SHELL = ["/", "/extra.css", ...JS, "/manifest.webmanifest", "/icons/icon-192.png", "/icons/favicon.png"];
 // Nur diese API-Antworten dürfen offline aus dem Speicher kommen (keine Konto-Daten!)
 const CACHEABLE_API = ["/api/results"]; // Kalender ist persönlich → nur im Gerätespeicher der App

@@ -125,3 +125,7 @@ textarea.inp { min-height:80px; padding:10px 14px; resize:vertical; }
 .perks li { display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:15px; border-bottom:1px solid var(--line); }
 .perks li:last-child { border-bottom:0; }
 .perks li span:first-child { flex:none; width:26px; font-size:19px; line-height:1.2; }
+
+/* Version 4.1: Sprachschalter mit vier Sprachen */
+.langseg button { padding:0 4px; font-size:13.5px; }
+.langseg .flag { font-size:16px; }

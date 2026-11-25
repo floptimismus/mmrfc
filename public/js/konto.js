@@ -135,7 +135,7 @@ function renderLoggedOut(root) {
 }
 async function loginFlow(errEl) {
   errEl.textContent = "";
-  try { const res = await doLogin(); signedIn(res, T(`Hi ${displayName(res.user)} 👋`, `Hi ${displayName(res.user)} 👋`)); }
+  try { const res = await doLogin(); signedIn(res, T(`Hi ${displayName(res.user)} 👋`, TP("Hi {0} 👋", displayName(res.user)))); }
   catch (err) { errEl.textContent = passkeyError(err); }
 }
 async function registerFlow(raw, errEl) {
@@ -190,7 +190,7 @@ function renderLoggedIn(root) {
   const u = Auth.user, sel = new Set(u.positions);
   root.innerHTML = `
     <div class="hero"><div class="top"><small>${T("Dein Konto", "Your account")}${u.admin ? " · Admin" : ""}</small><h1>Hey ${esc(displayName(u))}!</h1></div><div class="stripe"></div>
-      <div class="body"><p>${T(`Angemeldet als <b>@${esc(u.username)}</b>. Dein Profil sehen alle angemeldeten Mitglieder im Tab „Team“.`, `Signed in as <b>@${esc(u.username)}</b>. All signed-in members can see your profile in the “Team” tab.`)}</p></div></div>
+      <div class="body"><p>${T(`Angemeldet als <b>@${esc(u.username)}</b>. Dein Profil sehen alle angemeldeten Mitglieder im Tab „Team“.`, TP("Signed in as <b>@{0}</b>. All signed-in members can see your profile in the “Team” tab.", esc(u.username)))}</p></div></div>
     ${Auth.offline ? `<div class="note" style="margin:0 0 10px">${T("Offline – Änderungen sind gerade nicht möglich.", "Offline – changes aren't possible right now.")}</div>` : ""}
     <div class="card form" id="profileForm">
       <h3 style="margin:0 0 4px">${T("Dein Profil", "Your profile")}</h3>
@@ -230,7 +230,7 @@ function renderLoggedIn(root) {
   const cd = $("#calDel", root); if (cd) cd.onclick = () => saveCalendar("");
   $("#codeBtn", root).onclick = () => showCode("/api/me/code", T("Weiteres Gerät verbinden", "Connect another device"),
     T(`Öffne die App auf dem neuen Gerät → Konto → „Mit Code verbinden“ und gib <b>@${esc(u.username)}</b> und diesen Code ein.`,
-      `Open the app on the new device → Account → “Connect with code” and enter <b>@${esc(u.username)}</b> and this code.`));
+      TP("Open the app on the new device → Account → “Connect with code” and enter <b>@{0}</b> and this code.", esc(u.username))));
   $("#logoutBtn", root).onclick = async () => {
     try { await api("/api/auth/logout", { method: "POST", body: {} }); } catch (e) {}
     signedOut(T("Abgemeldet", "Signed out"));

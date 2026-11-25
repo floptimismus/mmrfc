@@ -80,7 +80,7 @@ async function renderErgebnisse() {
       <div class="stat w"><b>${t.w}</b><span>${T("Siege", "Wins")}</span></div>
       <div class="stat d"><b>${t.d}</b><span>${T("Unentsch.", "Draws")}</span></div>
       <div class="stat l"><b>${t.l}</b><span>${T("Niederl.", "Losses")}</span></div>
-    </div>${t.scored ? `<p class="hint" style="margin:-4px 0 12px;text-align:center">${T("Punkte", "Points")} ${t.pf} : ${t.pa} (${t.pf - t.pa >= 0 ? "+" : ""}${t.pf - t.pa})${t.scored < t.n ? ` · ${T(`aus ${t.scored} von ${t.n} Spielen`, `from ${t.scored} of ${t.n} games`)}` : ""}</p>` : ""}` : ""}
+    </div>${t.scored ? `<p class="hint" style="margin:-4px 0 12px;text-align:center">${T("Punkte", "Points")} ${t.pf} : ${t.pa} (${t.pf - t.pa >= 0 ? "+" : ""}${t.pf - t.pa})${t.scored < t.n ? ` · ${T(`aus ${t.scored} von ${t.n} Spielen`, TP("from {0} of {1} games", t.scored, t.n))}` : ""}</p>` : ""}` : ""}
     ${list.length ? list.map(matchdayCard).join("") : `<div class="empty"><h3>${T("Noch keine Ergebnisse", "No results yet")}</h3>
       <p style="margin:0">${canWrite() ? T("Trag das erste Ergebnis über den Knopf oben ein.", "Add the first result with the button above.") : T("Sobald etwas eingetragen ist, erscheint es hier.", "As soon as something is added, it shows up here.")}</p></div>`}`;
 

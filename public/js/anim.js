@@ -17,7 +17,7 @@ const RUCK_BASE = {
   D1: { x: 136, y: 118, role: "opp" }, D2: { x: 168, y: 118, role: "opp" }, D3: { x: 200, y: 118, role: "opp" },
   D4: { x: 232, y: 118, role: "opp" }, D5: { x: 264, y: 118, role: "opp" }, D6: { x: 298, y: 118, role: "opp" },
 };
-const RUCK_LEGEND = () => `<div class="legend"><span><i class="lg l"></i>Forwards</span><span><i class="lg j"></i>${T("Podleader", "Pod leader")}</span><span><i class="lg b"></i>${T("9 + Backs", "9 + backs")}</span><span><i class="lg o"></i>${T("Gegner*innen", "Opposition")}</span><span><i class="lg s"></i>${T("Support / Laufweg", "Support / run")}</span></div>`;
+const RUCK_LEGEND = () => `<div class="legend"><span><i class="lg l"></i>${L("Forwards")}</span><span><i class="lg j"></i>${T("Podleader", "Pod leader")}</span><span><i class="lg b"></i>${T("9 + Backs", "9 + backs")}</span><span><i class="lg o"></i>${T("Gegner*innen", "Opposition")}</span><span><i class="lg s"></i>${T("Support / Laufweg", "Support / run")}</span></div>`;
 const RUCK_INTRO = () => T("Aufstellung: Ruck etwas links der Mitte, die 9 holt den Ball. Gespielt wird nach rechts.", "Set-up: ruck slightly left of centre, the 9 gets the ball. We play to the right.");
 const SETUPS = {
   lineout: {
@@ -29,7 +29,7 @@ const SETUPS = {
       SH: { x: 150, y: 196, role: "back", label: "9" }, FH: { x: 232, y: 246, role: "back", label: "10" }, IC: { x: 280, y: 262, role: "back", label: "12" },
       O1: { x: 96, y: 122, role: "opp" }, O2: { x: 114, y: 122, role: "opp" }, O3: { x: 132, y: 122, role: "opp" }, O4: { x: 156, y: 122, role: "opp" }, O5: { x: 174, y: 122, role: "opp" }, O6: { x: 192, y: 122, role: "opp" },
     },
-    legend: () => `<div class="legend"><span><i class="lg j"></i>Jumper</span><span><i class="lg l"></i>Lifter</span><span><i class="lg h"></i>Hooker</span><span><i class="lg b"></i>Backs</span><span><i class="lg o"></i>${T("Gegner*innen", "Opposition")}</span><span><i class="lg s"></i>${T("Support-Lauf", "Support run")}</span></div>`,
+    legend: () => `<div class="legend"><span><i class="lg j"></i>${L("Jumper")}</span><span><i class="lg l"></i>${L("Lifter")}</span><span><i class="lg h"></i>${L("Hooker")}</span><span><i class="lg b"></i>${L("Backs")}</span><span><i class="lg o"></i>${T("Gegner*innen", "Opposition")}</span><span><i class="lg s"></i>${T("Support-Lauf", "Support run")}</span></div>`,
     intro: () => T("Aufstellung: Hooker an der Seitenlinie, unser Lineout gegenüber den Gegner*innen.", "Set-up: hooker on the touchline, our lineout opposite the opposition."),
     field: () => `<rect width="360" height="290" rx="14" fill="#123320"/>
       <rect x="0" y="0" width="40" height="290" fill="#0c1f14"/>
@@ -39,7 +39,7 @@ const SETUPS = {
       <line x1="200" y1="0" x2="200" y2="290" stroke="#fff" stroke-opacity=".35" stroke-dasharray="6 7"/>
       <text x="90" y="274" text-anchor="middle" class="flab">5 m</text><text x="200" y="274" text-anchor="middle" class="flab">15 m</text>
       <line x1="40" y1="140" x2="212" y2="140" stroke="#ffcc00" stroke-opacity=".45" stroke-dasharray="3 5"/>
-      <text x="214" y="143" class="flab" fill="#ffcc00">Line of touch</text>
+      <text x="214" y="143" class="flab" fill="#ffcc00">${L("Line of touch")}</text>
       <path d="M280 168 l-8 14 h5 v22 h6 v-22 h5z" fill="#ffcc00"/><text x="280" y="220" text-anchor="middle" class="flab" fill="#ffcc00">${T("ANGRIFF", "ATTACK")}</text>
       <text x="214" y="118" class="flab" fill-opacity=".5">${T("↑ Gegner*innen", "↑ Opposition")}</text>`,
   },

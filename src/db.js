@@ -12,7 +12,7 @@ const POSITIONS = Array.from({ length: 15 }, (_, i) => i + 1);
 const KINDS = ["spieltag", "turnier", "freundschaft"];
 const TEAMS = ["", "mixed", "flinta", "flying"];
 const EVENT_TEAMS = ["mixed", "flinta", "flying"];
-const LANGS = ["de", "en"];
+const LANGS = ["de", "en", "fr", "es"];
 const FOUNDED = 2016;
 
 /* ---------- kleine Helfer ---------- */

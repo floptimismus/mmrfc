@@ -23,7 +23,7 @@ function personCard(p) {
 function confidantBox(p) {
   const text = p.name
     ? T(`<p>Dir ist etwas passiert, das sich nicht okay anfühlt – auf dem Platz, in der Kabine, im Gruppenchat oder beim Social? Melde dich bei ${esc(p.name)} – vertraulich, ohne Urteil und in deinem Tempo.</p>`,
-        `<p>Something happened that doesn't feel okay – on the pitch, in the changing room, in the group chat or at a social? Reach out to ${esc(p.name)} – confidentially, without judgement and at your own pace.</p>`)
+        TP("<p>Something happened that doesn't feel okay – on the pitch, in the changing room, in the group chat or at a social? Reach out to {0} – confidentially, without judgement and at your own pace.</p>", esc(p.name)))
     : T("<p>Unsere Vertrauensperson wird gerade bestimmt. Bis dahin kannst du dich jederzeit vertraulich an den Vorstand wenden.</p>",
         "<p>We're currently choosing our confidant. Until then, you can always reach out to the board in confidence.</p>");
   return `<section class="confidant">
@@ -89,7 +89,7 @@ function renderMemberList() {
   const q = Auth.q.trim().toLowerCase(), pos = +Auth.pos || 0;
   const list = Auth.members.filter(m => (!q || [m.nickname, m.username, m.pronouns].join(" ").toLowerCase().includes(q)) && (!pos || m.positions.includes(pos)));
   const isAdmin = Auth.user && Auth.user.admin;
-  l.innerHTML = `<p class="hint" style="margin:0 0 8px">${T(`${list.length} von ${Auth.members.length} Mitgliedern`, `${list.length} of ${Auth.members.length} members`)}</p>` + (list.length ? list.map(m => `
+  l.innerHTML = `<p class="hint" style="margin:0 0 8px">${T(`${list.length} von ${Auth.members.length} Mitgliedern`, TP("{0} of {1} members", list.length, Auth.members.length))}</p>` + (list.length ? list.map(m => `
     <article class="member">
       ${jerseyAvatar(initials(displayName(m)), 56)}
       <div class="pinfo">
@@ -115,9 +115,9 @@ function openMemberAdmin(m) {
   };
   $("#maCode").onclick = () => showCode(`/api/members/${m.id}/code`, T("Code für ", "Code for ") + displayName(m),
     T(`${esc(displayName(m))} öffnet die App → Konto → „Mit Code verbinden“ und gibt <b>@${esc(m.username)}</b> und diesen Code ein.`,
-      `${esc(displayName(m))} opens the app → Account → “Connect with code” and enters <b>@${esc(m.username)}</b> and this code.`));
+      TP("{0} opens the app → Account → “Connect with code” and enters <b>@{1}</b> and this code.", esc(displayName(m)), esc(m.username))));
   $("#maDel").onclick = async () => {
-    if (!confirm(T(`${displayName(m)} wirklich entfernen? Das Konto wird gelöscht.`, `Really remove ${displayName(m)}? The account will be deleted.`))) return;
+    if (!confirm(T(`${displayName(m)} wirklich entfernen? Das Konto wird gelöscht.`, TP("Really remove {0}? The account will be deleted.", displayName(m))))) return;
     try { await api(`/api/members/${m.id}`, { method: "DELETE" }); Auth.members = null; closeSheet(); loadMembers(); toast(T("Entfernt", "Removed")); }
     catch (err) { toast(err.message); }
   };
