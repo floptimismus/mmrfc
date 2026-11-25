@@ -25,9 +25,11 @@ const CAT_INTRO = {
   pass: {
     de: `<p>Nach einem <b>Ruck</b> (Gedränge um den Ball am Boden) holt die <b>9</b> den Ball und spielt ihn weiter. Mit dem <b>Pass-Call</b> sagen wir an, wohin.</p>
       <p>Ein <b>Forward-Pod</b> ist eine kleine Gruppe Forwards, die zusammen anläuft. Beim <b>Diamant-Pod</b> stehen vier im Diamant: der <b>Podleader (L)</b> vorne, <b>A</b> auf der Seite der 9, <b>B</b> auf der anderen Seite und <b>C</b> dahinter.</p>
+      <p><b>Support-Lauf:</b> Der Pod läuft als <b>Dreieck</b> – die Person mit dem Ball an der Spitze, die zwei Supporter*innen eine Armlänge schräg dahinter.</p>
       <p>In den Grafiken liegt der Ruck etwas links der Mitte, gespielt wird nach rechts. Angriff ist nach oben ↑</p>`,
     en: `<p>After a <b>ruck</b> (the contest for the ball on the ground) the <b>9</b> picks up the ball and moves it on. The <b>passing call</b> tells everyone where.</p>
       <p>A <b>forward pod</b> is a small group of forwards running together. In the <b>diamond pod</b> four players form a diamond: the <b>pod leader (L)</b> at the front, <b>A</b> on the 9's side, <b>B</b> on the other side and <b>C</b> behind.</p>
+      <p><b>Support run:</b> the pod runs as a <b>triangle</b> – the ball carrier at the tip, the two supporters one arm's length diagonally behind.</p>
       <p>In the graphics the ruck is slightly left of centre and we play to the right. We attack upwards ↑</p>` },
 };
 
