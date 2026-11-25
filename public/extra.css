@@ -137,3 +137,9 @@ select.inp option, select.inp optgroup { background-color: var(--s1); color: var
 /* Link zu den offiziellen Regeln */
 .lawlink { margin: 12px 0 2px; font-size: 14.5px; }
 .lawlink a { color: var(--tx); font-weight: 700; text-decoration: underline; text-decoration-color: var(--y); text-underline-offset: 3px; }
+
+/* Version 4.4: Passkey-Anleitung */
+.steps.guide { color: var(--tx); }
+.steps.guide li { margin: 8px 0; line-height: 1.45; }
+.guidetips { margin-top: 12px; font-size: 14px; color: var(--mut); }
+.guidetips li { margin: 6px 0; }

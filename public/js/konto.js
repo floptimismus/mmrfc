@@ -104,6 +104,39 @@ function renderKonto(anchor) {
   if (anchor === "calendar") setTimeout(() => { const c = $("#calCard"); if (c) c.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50);
 }
 
+/* ---------- Anleitung: Konto mit Passkey erstellen ---------- */
+function passkeyGuide() {
+  const steps = T(
+    ["Tippe unten in der Leiste auf <b>„Konto“</b> (oder im Willkommens-Fenster auf das Username-Feld).",
+     "Gib unter <b>„Neu hier?“</b> einen <b>Username</b> ein, z. B. <i>sam.rugby</i> – 3–24 Zeichen, nur Kleinbuchstaben, Zahlen, Punkt, Strich und Unterstrich.",
+     "Tippe auf <b>„Konto erstellen“</b>.",
+     "Dein Gerät fragt, ob es einen <b>Passkey sichern</b> soll. Bestätige mit <b>Face ID, Fingerabdruck oder deiner Geräte-PIN</b>:<br>• <b>iPhone, iPad, Mac:</b> „Fortfahren“ → Face ID / Touch ID<br>• <b>Android:</b> Google Passwortmanager → Fingerabdruck oder Displaysperre<br>• <b>Windows:</b> Windows Hello → PIN, Gesicht oder Fingerabdruck",
+     "Fertig – du bist angemeldet! 🎉 Ergänze jetzt dein <b>Profil</b> (Spitzname, Pronomen, Positionen, dabei seit) und füge deinen <b>SpielerPlus-Kalenderlink</b> ein.",
+     "<b>Beim nächsten Mal:</b> „Mit Passkey anmelden“ tippen und dein Gerät entsperren – kein Passwort nötig."],
+    ["Tap <b>“Account”</b> in the bar at the bottom (or the username field in the welcome window).",
+     "Under <b>“New here?”</b>, enter a <b>username</b>, e.g. <i>sam.rugby</i> – 3–24 characters, only lower-case letters, numbers, dot, dash and underscore.",
+     "Tap <b>“Create account”</b>.",
+     "Your device asks whether to <b>save a passkey</b>. Confirm with <b>Face ID, fingerprint or your device PIN</b>:<br>• <b>iPhone, iPad, Mac:</b> “Continue” → Face ID / Touch ID<br>• <b>Android:</b> Google Password Manager → fingerprint or screen lock<br>• <b>Windows:</b> Windows Hello → PIN, face or fingerprint",
+     "Done – you're signed in! 🎉 Now complete your <b>profile</b> (nickname, pronouns, positions, playing since) and add your <b>SpielerPlus calendar link</b>.",
+     "<b>Next time:</b> tap “Sign in with passkey” and unlock your device – no password needed."]);
+  const tips = T(
+    ["<b>Was ist ein Passkey?</b> Ein digitaler Schlüssel, der sicher auf deinem Gerät liegt. Es gibt kein Passwort, das man vergessen oder stehlen kann.",
+     "<b>Mehrere Geräte:</b> Passkeys werden im iCloud-Schlüsselbund bzw. im Google Passwortmanager gespeichert und auf deinen Geräten mit demselben Konto automatisch verfügbar.",
+     "<b>Anderes System</b> (z. B. iPhone + Windows-PC): Am PC zeigt der Browser beim Anmelden oft einen QR-Code – scanne ihn mit dem Handy. Oder nutze „Weiteres Gerät verbinden“ im Konto und den 6-stelligen Code.",
+     "<b>Klappt nicht?</b> Nutze ein aktuelles Safari, Chrome oder Edge und öffne die App direkt im Browser (nicht in der Vorschau von WhatsApp oder Instagram)."],
+    ["<b>What is a passkey?</b> A digital key that's stored safely on your device. There's no password that could be forgotten or stolen.",
+     "<b>Several devices:</b> passkeys are saved in iCloud Keychain or Google Password Manager and are automatically available on your devices with the same account.",
+     "<b>Different system</b> (e.g. iPhone + Windows PC): when signing in on the PC, the browser often shows a QR code – scan it with your phone. Or use “Connect another device” in your account and the 6-digit code.",
+     "<b>Not working?</b> Use an up-to-date Safari, Chrome or Edge and open the app directly in the browser (not in the WhatsApp or Instagram preview)."]);
+  return `<ol class="steps guide">${steps.map(x => `<li>${x}</li>`).join("")}</ol>
+    <ul class="mini guidetips">${tips.map(x => `<li>${x}</li>`).join("")}</ul>`;
+}
+function openGuideSheet() {
+  openSheet(`<h2 style="font-size:26px;margin:4px 40px 8px 0">🔑 ${T("Konto mit Passkey erstellen", "Create an account with a passkey")}</h2>${passkeyGuide()}
+    <button class="btn primary" id="gBack" style="width:100%;margin-top:12px">${T("Los geht's", "Let's go")}</button>`);
+  $("#gBack").onclick = () => { closeSheet(); showTab("konto"); setTimeout(() => { const u = $("#regUser"); if (u) u.focus(); }, 300); };
+}
+
 function renderLoggedOut(root) {
   const ok = passkeysSupported();
   root.innerHTML = `
@@ -124,6 +157,7 @@ function renderLoggedOut(root) {
       <p class="hint">${T("3–24 Zeichen: Kleinbuchstaben, Zahlen, Punkt, Strich, Unterstrich. Wird für alle Mitglieder sichtbar.", "3–24 characters: lower-case letters, numbers, dot, dash, underscore. Visible to all members.")}</p>
       <button class="btn primary" id="regBtn" style="width:100%;margin-top:12px" ${ok ? "" : "disabled"}>${T("Konto erstellen", "Create account")}</button>
       <p class="err" id="regErr"></p>
+      <details class="basics" style="margin:10px 0 0"><summary>📋 ${T("So erstellst du ein Konto mit Passkey – Schritt für Schritt", "How to create an account with a passkey – step by step")}</summary>${passkeyGuide()}</details>
     </div>
     <div class="note">📱 <b>${T("Neues Handy oder anderer Browser?", "New phone or another browser?")}</b> ${T("Erstelle auf deinem angemeldeten Gerät unter „Weiteres Gerät verbinden“ einen Code.", "Create a code on your signed-in device under “Connect another device”.")}
       <div style="margin-top:8px"><button class="btn sm" id="linkBtn" ${ok ? "" : "disabled"}>${T("Mit Code verbinden", "Connect with code")}</button></div></div>`;
@@ -284,6 +318,7 @@ function maybeWelcome() {
     <p class="err" id="wErr"></p>
     <div class="btnrow" style="justify-content:space-between;margin-top:4px">
       <button class="btn ghost sm" id="wLogin" ${ok ? "" : "disabled"}>${T("Ich habe schon ein Konto – anmelden", "I already have an account – sign in")}</button>
+      <button class="btn ghost sm" id="wGuide">❓ ${T("Wie funktioniert das?", "How does it work?")}</button>
       <button class="btn ghost sm" id="wLater">${T("Später", "Later")}</button>
     </div></div>`);
   const S = $("#sheetInner");
@@ -292,6 +327,7 @@ function maybeWelcome() {
   $("#wReg", S).onclick = () => registerFlow($("#wUser", S).value, $("#wErr", S));
   $("#wLogin", S).onclick = () => loginFlow($("#wErr", S));
   $("#wLater", S).onclick = closeSheet;
+  $("#wGuide", S).onclick = openGuideSheet;
 }
 
 onShow.konto = renderKonto;
