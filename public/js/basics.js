@@ -147,6 +147,7 @@ function renderBasics(anchor) {
           <div class="seg">${SCRUM_PHASES.map((p, i) => `<button class="scrumbtn" data-sp="${i}">${p.label}</button>`).join("")}</div>
           <p id="scrumText" class="scrumtext"></p>
           <ul class="mini">${st.list.map(li => `<li>${li}</li>`).join("")}</ul>
+          <p class="lawlink"><a href="https://passport.world.rugby/laws-of-the-game/laws-by-number/19-scrum/" target="_blank" rel="noopener">📖 ${T("Offizielle Scrum-Regeln – World Rugby, Regel 19", "Official scrum laws – World Rugby, Law 19")} ↗</a></p>
         </div>
       </section>
 

@@ -129,3 +129,11 @@ textarea.inp { min-height:80px; padding:10px 14px; resize:vertical; }
 /* Version 4.1: Sprachschalter mit vier Sprachen */
 .langseg button { padding:0 4px; font-size:13.5px; }
 .langseg .flag { font-size:16px; }
+
+/* Version 4.2: Dropdown-Menüs (z. B. Windows/Chrome) im Darkmode lesbar */
+:root[data-theme=dark] { color-scheme: dark; }
+:root[data-theme=light] { color-scheme: light; }
+select.inp option, select.inp optgroup { background-color: var(--s1); color: var(--tx); }
+/* Link zu den offiziellen Regeln */
+.lawlink { margin: 12px 0 2px; font-size: 14.5px; }
+.lawlink a { color: var(--tx); font-weight: 700; text-decoration: underline; text-decoration-color: var(--y); text-underline-offset: 3px; }

@@ -21,7 +21,7 @@ const RUCK_LEGEND = () => `<div class="legend"><span><i class="lg l"></i>${L("Fo
 const RUCK_INTRO = () => T("Aufstellung: Ruck etwas links der Mitte, die 9 holt den Ball. Gespielt wird nach rechts.", "Set-up: ruck slightly left of centre, the 9 gets the ball. We play to the right.");
 const SETUPS = {
   lineout: {
-    ball: "H", viewBox: "8 58 296 222",
+    ball: "H", viewBox: "8 22 296 258",
     ents: {
       H: { x: 24, y: 140, role: "hooker", label: "H", name: "Hooker" },
       L1: { x: 96, y: 158, role: "lifter", label: "L1" }, J1: { x: 114, y: 158, role: "jumper", label: "J1" }, L2: { x: 132, y: 158, role: "lifter", label: "L2" },
